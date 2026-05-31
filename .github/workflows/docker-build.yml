@@ -13,33 +13,16 @@ on:
         type: string
 
 jobs:
-  build_single_arch:
-    name: Build & push (${{ matrix.arch }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            platform: linux/amd64
-            runner: ubuntu-latest
-          - arch: arm64
-            platform: linux/arm64
-            runner: ubuntu-latest
-    runs-on: ${{ matrix.runner }}
+  resolve_tag:
+    name: Resolve version tag
+    runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.version.outputs.tag }}
-
-    permissions:
-      packages: write
-      contents: read
-      id-token: write
-
     steps:
       - name: Check out
         uses: actions/checkout@v4
         with:
-          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && 0 || 1 }}
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
 
       - name: Resolve tag & write VERSION
         id: version
@@ -59,7 +42,34 @@ jobs:
           echo "TAG=${TAG}" >> $GITHUB_ENV
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "${TAG}" > VERSION
-          echo "Building with tag: ${TAG} for ${{ matrix.arch }}"
+          echo "Building with tag: ${TAG}"
+
+  build_single_arch:
+    name: Build & push (${{ matrix.arch }})
+    needs: [resolve_tag]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+
+    permissions:
+      packages: write
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && 0 || 1 }}
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set up QEMU
         if: matrix.arch == 'arm64'
@@ -88,7 +98,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           tags: |
-            cocoakng/new-api:${{ env.TAG }}-${{ matrix.arch }}
+            cocoakng/new-api:${{ needs.resolve_tag.outputs.tag }}-${{ matrix.arch }}
             cocoakng/new-api:latest-${{ matrix.arch }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -106,19 +116,19 @@ jobs:
         run: |
           echo "### Docker Image Digest (${{ matrix.arch }})" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "cocoakng/new-api:${TAG}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+          echo "cocoakng/new-api:${{ needs.resolve_tag.outputs.tag }}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
   create_manifests:
     name: Create multi-arch manifests
-    needs: [build_single_arch]
+    needs: [resolve_tag, build_single_arch]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Set version
-        run: echo "TAG=${{ needs.build_single_arch.outputs.tag }}" >> $GITHUB_ENV
+        run: echo "TAG=${{ needs.resolve_tag.outputs.tag }}" >> $GITHUB_ENV
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
