@@ -1,4 +1,4 @@
-name: Publish Docker image (Multi-arch)
+name: Publish Docker image
 
 on:
   push:
@@ -44,20 +44,10 @@ jobs:
           echo "${TAG}" > VERSION
           echo "Building with tag: ${TAG}"
 
-  build_single_arch:
-    name: Build & push (${{ matrix.arch }})
+  build_and_push:
+    name: Build & push
     needs: [resolve_tag]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            platform: linux/amd64
-            runner: ubuntu-latest
-          - arch: arm64
-            platform: linux/arm64
-            runner: ubuntu-latest
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
 
     permissions:
       packages: write
@@ -70,10 +60,6 @@ jobs:
         with:
           fetch-depth: ${{ github.event_name == 'workflow_dispatch' && 0 || 1 }}
           ref: ${{ github.event.inputs.tag || github.ref }}
-
-      - name: Set up QEMU
-        if: matrix.arch == 'arm64'
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -95,11 +81,11 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: ${{ matrix.platform }}
+          platforms: linux/amd64
           push: true
           tags: |
-            cocoakng/new-api:${{ needs.resolve_tag.outputs.tag }}-${{ matrix.arch }}
-            cocoakng/new-api:latest-${{ matrix.arch }}
+            cocoakng/new-api:${{ needs.resolve_tag.outputs.tag }}
+            cocoakng/new-api:latest
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -114,45 +100,8 @@ jobs:
 
       - name: Image summary
         run: |
-          echo "### Docker Image Digest (${{ matrix.arch }})" >> $GITHUB_STEP_SUMMARY
+          echo "### Docker Image Digest" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "cocoakng/new-api:${{ needs.resolve_tag.outputs.tag }}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+          echo "cocoakng/new-api:${{ needs.resolve_tag.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-
-  create_manifests:
-    name: Create multi-arch manifests
-    needs: [resolve_tag, build_single_arch]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-
-    steps:
-      - name: Set version
-        run: echo "TAG=${{ needs.resolve_tag.outputs.tag }}" >> $GITHUB_ENV
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Create & push manifest (version)
-        run: |
-          docker buildx imagetools create \
-            -t cocoakng/new-api:${TAG} \
-            cocoakng/new-api:${TAG}-amd64 \
-            cocoakng/new-api:${TAG}-arm64
-
-      - name: Create & push manifest (latest)
-        run: |
-          docker buildx imagetools create \
-            -t cocoakng/new-api:latest \
-            cocoakng/new-api:latest-amd64 \
-            cocoakng/new-api:latest-arm64
-
-      - name: Manifest summary
-        run: |
-          echo "### Multi-arch Manifest" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          docker buildx imagetools inspect cocoakng/new-api:${TAG} >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
