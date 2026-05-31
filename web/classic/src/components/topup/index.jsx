@@ -39,6 +39,7 @@ import InvitationCard from './InvitationCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
+import RedemptionHistoryModal from './modals/RedemptionHistoryModal';
 
 // Reject non-navigable schemes (e.g. javascript:, data:) and relative URLs.
 // Only http / https are allowed for backend-provided redirect targets.
@@ -110,6 +111,9 @@ const TopUp = () => {
 
   // 账单Modal状态
   const [openHistory, setOpenHistory] = useState(false);
+
+  // 兑换记录Modal状态
+  const [openRedemptionHistory, setOpenRedemptionHistory] = useState(false);
 
   // 订阅相关
   const [subscriptionPlans, setSubscriptionPlans] = useState([]);
@@ -869,6 +873,10 @@ const TopUp = () => {
     setOpenHistory(true);
   };
 
+  const handleOpenRedemptionHistory = () => {
+    setOpenRedemptionHistory(true);
+  };
+
   const handleHistoryCancel = () => {
     setOpenHistory(false);
   };
@@ -941,6 +949,13 @@ const TopUp = () => {
         t={t}
       />
 
+      {/* 兑换记录模态框 */}
+      <RedemptionHistoryModal
+        visible={openRedemptionHistory}
+        onCancel={() => setOpenRedemptionHistory(false)}
+        t={t}
+      />
+
       {/* Creem 充值确认模态框 */}
       <Modal
         title={t('确定要充值 $')}
@@ -1008,6 +1023,7 @@ const TopUp = () => {
           statusLoading={statusLoading}
           topupInfo={topupInfo}
           onOpenHistory={handleOpenHistory}
+          onOpenRedemptionHistory={handleOpenRedemptionHistory}
           subscriptionLoading={subscriptionLoading}
           subscriptionPlans={subscriptionPlans}
           billingPreference={billingPreference}

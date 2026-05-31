@@ -287,3 +287,37 @@ export interface BillingHistoryResponse {
 export interface CompleteOrderRequest {
   trade_no: string
 }
+
+/**
+ * Redemption record for user's own redemption history
+ */
+export interface UserRedemption {
+  /** Record ID */
+  id: number
+  /** Creator user ID */
+  user_id: number
+  /** Redemption code key (masked for display) */
+  key: string
+  /** Status: 1 = unused, 2 = used, 3 = disabled */
+  status: number
+  /** Redemption name/description */
+  name: string
+  /** Quota amount */
+  quota: number
+  /** Created timestamp */
+  created_time: number
+  /** Redeemed timestamp */
+  redeemed_time: number
+  /** User ID who redeemed this code */
+  used_user_id: number
+  /** Expiration timestamp, 0 = no expiration */
+  expired_time: number
+}
+
+/**
+ * Redemption history response
+ */
+export interface RedemptionHistoryResponse {
+  items: UserRedemption[]
+  total: number
+}

@@ -38,6 +38,7 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  RedemptionHistoryResponse,
 } from './types'
 
 // ============================================================================
@@ -231,5 +232,24 @@ export async function completeOrder(
   request: CompleteOrderRequest
 ): Promise<ApiResponse> {
   const res = await api.post('/api/user/topup/complete', request)
+  return res.data
+}
+
+/**
+ * Get redemption history for current user
+ */
+export async function getUserRedemptionHistory(
+  page: number,
+  pageSize: number,
+  keyword?: string
+): Promise<ApiResponse<RedemptionHistoryResponse>> {
+  const params = new URLSearchParams({
+    p: page.toString(),
+    page_size: pageSize.toString(),
+  })
+  if (keyword) {
+    params.append('keyword', keyword)
+  }
+  const res = await api.get(`/api/user/redemptions?${params.toString()}`)
   return res.data
 }

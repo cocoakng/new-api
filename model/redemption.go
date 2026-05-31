@@ -196,3 +196,75 @@ func DeleteInvalidRedemptions() (int64, error) {
 	result := DB.Where("status IN ? OR (status = ? AND expired_time != 0 AND expired_time < ?)", []int{common.RedemptionCodeStatusUsed, common.RedemptionCodeStatusDisabled}, common.RedemptionCodeStatusEnabled, now).Delete(&Redemption{})
 	return result.RowsAffected, result.Error
 }
+
+func GetUserRedemptions(userId int, pageInfo *common.PageInfo) (redemptions []*Redemption, total int64, err error) {
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return nil, 0, tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Get total count
+	err = tx.Model(&Redemption{}).Where("used_user_id = ?", userId).Count(&total).Error
+	if err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+
+	// Get paginated data
+	err = tx.Where("used_user_id = ?", userId).Order("redeemed_time desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&redemptions).Error
+	if err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+
+	if err = tx.Commit().Error; err != nil {
+		return nil, 0, err
+	}
+
+	return redemptions, total, nil
+}
+
+func SearchUserRedemptions(userId int, keyword string, pageInfo *common.PageInfo) (redemptions []*Redemption, total int64, err error) {
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return nil, 0, tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	query := tx.Model(&Redemption{}).Where("used_user_id = ?", userId)
+
+	if id, err := strconv.Atoi(keyword); err == nil {
+		query = query.Where("id = ? OR name LIKE ? OR key LIKE ?", id, keyword+"%", keyword+"%")
+	} else {
+		query = query.Where("name LIKE ? OR key LIKE ?", keyword+"%", keyword+"%")
+	}
+
+	// Get total count
+	err = query.Count(&total).Error
+	if err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+
+	// Get paginated data
+	err = query.Order("redeemed_time desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&redemptions).Error
+	if err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+
+	if err = tx.Commit().Error; err != nil {
+		return nil, 0, err
+	}
+
+	return redemptions, total, nil
+}
