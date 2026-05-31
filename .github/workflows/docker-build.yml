@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag name to build (e.g., v0.10.8-alpha.3)'
-        required: true
+        description: 'Tag to build and deploy (e.g., v0.10.8). Leave empty for latest main.'
+        required: false
         type: string
 
 jobs:
@@ -50,13 +50,16 @@ jobs:
               echo "::error::Tag '$TAG' does not exist"
               exit 1
             fi
-          else
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
             TAG=${GITHUB_REF#refs/tags/}
+          else
+            # workflow_dispatch without tag: build from main
+            TAG="latest-$(date +%Y%m%d%H%M%S)"
           fi
           echo "TAG=${TAG}" >> $GITHUB_ENV
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "${TAG}" > VERSION
-          echo "Building tag: ${TAG} for ${{ matrix.arch }}"
+          echo "Building with tag: ${TAG} for ${{ matrix.arch }}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -71,7 +74,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: calciumion/new-api
+          images: cocoakng/new-api
 
       - name: Build & push
         id: build
@@ -81,8 +84,8 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           tags: |
-            calciumion/new-api:${{ env.TAG }}-${{ matrix.arch }}
-            calciumion/new-api:latest-${{ matrix.arch }}
+            cocoakng/new-api:${{ env.TAG }}-${{ matrix.arch }}
+            cocoakng/new-api:latest-${{ matrix.arch }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -93,13 +96,13 @@ jobs:
         uses: sigstore/cosign-installer@v3
 
       - name: Sign image with cosign
-        run: cosign sign --yes calciumion/new-api@${{ steps.build.outputs.digest }}
+        run: cosign sign --yes cocoakng/new-api@${{ steps.build.outputs.digest }}
 
       - name: Image summary
         run: |
           echo "### Docker Image Digest (${{ matrix.arch }})" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "calciumion/new-api:${TAG}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+          echo "cocoakng/new-api:${TAG}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
@@ -122,20 +125,20 @@ jobs:
       - name: Create & push manifest (version)
         run: |
           docker buildx imagetools create \
-            -t calciumion/new-api:${TAG} \
-            calciumion/new-api:${TAG}-amd64 \
-            calciumion/new-api:${TAG}-arm64
+            -t cocoakng/new-api:${TAG} \
+            cocoakng/new-api:${TAG}-amd64 \
+            cocoakng/new-api:${TAG}-arm64
 
       - name: Create & push manifest (latest)
         run: |
           docker buildx imagetools create \
-            -t calciumion/new-api:latest \
-            calciumion/new-api:latest-amd64 \
-            calciumion/new-api:latest-arm64
+            -t cocoakng/new-api:latest \
+            cocoakng/new-api:latest-amd64 \
+            cocoakng/new-api:latest-arm64
 
       - name: Manifest summary
         run: |
           echo "### Multi-arch Manifest" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          docker buildx imagetools inspect calciumion/new-api:${TAG} >> $GITHUB_STEP_SUMMARY
+          docker buildx imagetools inspect cocoakng/new-api:${TAG} >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
