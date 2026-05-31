@@ -44,6 +44,7 @@ import {
   TrendingUp,
   Receipt,
   Sparkles,
+  ListOrdered,
 } from 'lucide-react';
 import { IconGift } from '@douyinfe/semi-icons';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
@@ -98,6 +99,7 @@ const RechargeCard = ({
   allSubscriptions = [],
   reloadSubscriptionSelf,
   enableRedemption = true,
+  onOpenRedemptionHistory,
 }) => {
   const onlineFormApiRef = useRef(null);
   const redeemFormApiRef = useRef(null);
@@ -582,9 +584,21 @@ const RechargeCard = ({
         <Card
           className='!rounded-xl w-full'
           title={
-            <Text type='tertiary' strong>
-              {t('兑换码充值')}
-            </Text>
+            <div className='flex items-center justify-between'>
+              <Text type='tertiary' strong>
+                {t('兑换码充值')}
+              </Text>
+              {onOpenRedemptionHistory && (
+                <Button
+                  icon={<ListOrdered size={16} />}
+                  theme='borderless'
+                  size='small'
+                  onClick={onOpenRedemptionHistory}
+                >
+                  {t('兑换记录')}
+                </Button>
+              )}
+            </div>
           }
         >
           <Form
@@ -656,13 +670,15 @@ const RechargeCard = ({
             <div className='text-xs'>{t('多种充值方式，安全便捷')}</div>
           </div>
         </div>
-        <Button
-          icon={<Receipt size={16} />}
-          theme='solid'
-          onClick={onOpenHistory}
-        >
-          {t('账单')}
-        </Button>
+        <div className='flex items-center gap-2'>
+          <Button
+            icon={<Receipt size={16} />}
+            theme='solid'
+            onClick={onOpenHistory}
+          >
+            {t('账单')}
+          </Button>
+        </div>
       </div>
 
       {shouldShowSubscription ? (

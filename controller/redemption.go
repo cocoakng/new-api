@@ -191,3 +191,28 @@ func validateExpiredTime(c *gin.Context, expired int64) (bool, string) {
 	}
 	return true, ""
 }
+
+func GetUserSelfRedemptions(c *gin.Context) {
+	userId := c.GetInt("id")
+	pageInfo := common.GetPageQuery(c)
+	keyword := c.Query("keyword")
+
+	var (
+		redemptions []*model.Redemption
+		total       int64
+		err         error
+	)
+	if keyword != "" {
+		redemptions, total, err = model.SearchUserRedemptions(userId, keyword, pageInfo)
+	} else {
+		redemptions, total, err = model.GetUserRedemptions(userId, pageInfo)
+	}
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(redemptions)
+	common.ApiSuccess(c, pageInfo)
+}
