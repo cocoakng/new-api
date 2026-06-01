@@ -150,6 +150,10 @@ export interface TopupInfo {
   enable_waffo_pancake_topup?: boolean
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
+  /** Whether Xunhu (虎皮椒) topup is enabled */
+  enable_xunhu_topup?: boolean
+  /** Minimum topup amount for Xunhu */
+  xunhu_min_topup?: number
   /** Whether redemption code usage is enabled */
   enable_redemption?: boolean
   /** Whether compliance confirmation has been completed */

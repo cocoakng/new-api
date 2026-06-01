@@ -91,6 +91,7 @@ const RechargeCard = ({
   onOpenHistory,
   enableWaffoTopUp,
   enableWaffoPancakeTopUp,
+  enableXunhuTopUp,
   subscriptionLoading = false,
   subscriptionPlans = [],
   billingPreference,
@@ -236,7 +237,8 @@ const RechargeCard = ({
           enableStripeTopUp ||
           enableCreemTopUp ||
           enableWaffoTopUp ||
-          enableWaffoPancakeTopUp ? (
+          enableWaffoPancakeTopUp ||
+          enableXunhuTopUp ? (
           <Form
             getFormApi={(api) => (onlineFormApiRef.current = api)}
             initValues={{ topUpCount: topUpCount }}
@@ -245,7 +247,8 @@ const RechargeCard = ({
               {(enableOnlineTopUp ||
                 enableStripeTopUp ||
                 enableWaffoTopUp ||
-                enableWaffoPancakeTopUp) && (
+                enableWaffoPancakeTopUp ||
+                enableXunhuTopUp) && (
                 <Row gutter={12}>
                   <Col xs={24} sm={24} md={24} lg={10} xl={10}>
                     <Form.InputNumber
@@ -255,7 +258,8 @@ const RechargeCard = ({
                         !enableOnlineTopUp &&
                         !enableStripeTopUp &&
                         !enableWaffoTopUp &&
-                        !enableWaffoPancakeTopUp
+                        !enableWaffoPancakeTopUp &&
+                        !enableXunhuTopUp
                       }
                       placeholder={
                         t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
@@ -321,14 +325,17 @@ const RechargeCard = ({
                               payMethod.type.startsWith('waffo:');
                             const isWaffoPancake =
                               payMethod.type === 'waffo_pancake';
+                            const isXunhu = payMethod.type === 'xunhu';
                             const disabled =
                               (!enableOnlineTopUp &&
                                 !isStripe &&
                                 !isWaffo &&
-                                !isWaffoPancake) ||
+                                !isWaffoPancake &&
+                                !isXunhu) ||
                               (!enableStripeTopUp && isStripe) ||
                               (!enableWaffoTopUp && isWaffo) ||
                               (!enableWaffoPancakeTopUp && isWaffoPancake) ||
+                              (!enableXunhuTopUp && isXunhu) ||
                               minTopupVal > Number(topUpCount || 0);
 
                             const buttonEl = (
@@ -413,7 +420,7 @@ const RechargeCard = ({
                 </Row>
               )}
 
-              {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp) && (
+              {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp || enableWaffoPancakeTopUp || enableXunhuTopUp) && (
                 <Form.Slot
                   label={
                     <div className='flex items-center gap-2'>
@@ -701,6 +708,7 @@ const RechargeCard = ({
                 enableOnlineTopUp={enableOnlineTopUp}
                 enableStripeTopUp={enableStripeTopUp}
                 enableCreemTopUp={enableCreemTopUp}
+                enableWaffoPancakeTopUp={enableWaffoPancakeTopUp}
                 billingPreference={billingPreference}
                 onChangeBillingPreference={onChangeBillingPreference}
                 activeSubscriptions={activeSubscriptions}

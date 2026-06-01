@@ -57,6 +57,7 @@ export default defineConfig({
   ],
   optimizeDeps: {
     force: true,
+    exclude: ['antd'],
     esbuildOptions: {
       loader: {
         '.js': 'jsx',

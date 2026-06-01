@@ -170,6 +170,30 @@ export async function requestWaffoPancakePayment(
 }
 
 /**
+ * Calculate payment amount for Xunhu payment
+ */
+export async function calculateXunhuAmount(
+  request: AmountRequest
+): Promise<AmountResponse> {
+  const res = await api.post('/api/user/xunhu/amount', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Request Xunhu payment
+ */
+export async function requestXunhuPayment(
+  request: PaymentRequest
+): Promise<PaymentResponse> {
+  const res = await api.post('/api/user/xunhu/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
  * Get affiliate code
  */
 export async function getAffiliateCode(): Promise<AffiliateCodeResponse> {

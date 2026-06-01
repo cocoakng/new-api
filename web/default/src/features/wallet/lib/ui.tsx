@@ -142,6 +142,13 @@ export function getPaymentIcon(
           />
         </span>
       )
+    case PAYMENT_TYPES.XUNHU:
+      return (
+        <CreditCard
+          className={className}
+          style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.XUNHU] }}
+        />
+      )
     default:
       return <CreditCard className={className} />
   }
