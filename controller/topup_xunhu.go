@@ -204,15 +204,18 @@ func genXunhuPayLink(ctx context.Context, tradeNo string, payMoney float64, titl
 	returnURL := paymentReturnPath("/console/log")
 
 	// 构建支付参数
+	now := time.Now().Unix()
+	nonceStr := randstr.Hex(16)
 	params := map[string]string{
 		"version":        "1.1",
+		"appid":          setting.XunhuAppId,
 		"trade_order_id": tradeNo,
 		"total_fee":      strconv.FormatFloat(payMoney, 'f', 2, 64),
 		"title":          title,
+		"time":           strconv.FormatInt(now, 10),
 		"notify_url":     notifyURL.String(),
 		"return_url":     returnURL,
-		"wap_name":       "AI Link",
-		"callback_url":   "",
+		"nonce_str":      nonceStr,
 	}
 
 	// 签名
@@ -240,37 +243,25 @@ func genXunhuPayLink(ctx context.Context, tradeNo string, payMoney float64, titl
 
 	// 解析响应
 	var result struct {
-		Openid    string `json:"openid"`
+		OrderID   string `json:"orderid"`
 		URL       string `json:"url"`
+		URLQrCode string `json:"url_qrcode"`
 		ErrCode   int    `json:"errcode"`
 		ErrMsg    string `json:"errmsg"`
-		Errmsg    string `json:"errmsg,omitempty"` // some APIs use lowercase
-		QrCode    string `json:"qr_code"`
-		URLScheme string `json:"url_scheme"`
 	}
 	if err := json.Unmarshal(body, &result); err != nil {
 		return "", fmt.Errorf("解析虎皮椒响应失败: %v, body: %s", err, string(body))
 	}
 
 	// 检查错误码
-	if result.Openid == "" && result.URL == "" && result.QrCode == "" && result.URLScheme == "" {
-		errMsg := result.ErrMsg
-		if errMsg == "" {
-			errMsg = result.Errmsg
-		}
-		return "", fmt.Errorf("虎皮椒返回错误: errcode=%d, errmsg=%s", result.ErrCode, errMsg)
+	if result.ErrCode != 0 || (result.URL == "" && result.URLQrCode == "") {
+		return "", fmt.Errorf("虎皮椒返回错误: errcode=%d, errmsg=%s", result.ErrCode, result.ErrMsg)
 	}
 
 	// 返回支付链接（优先使用 URL）
 	payURL := result.URL
-	if payURL == "" && result.QrCode != "" {
-		payURL = result.QrCode
-	}
-	if payURL == "" && result.URLScheme != "" {
-		payURL = result.URLScheme
-	}
-	if payURL == "" && result.Openid != "" {
-		payURL = result.Openid
+	if payURL == "" && result.URLQrCode != "" {
+		payURL = result.URLQrCode
 	}
 
 	return payURL, nil

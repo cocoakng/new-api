@@ -144,9 +144,9 @@ export function getPaymentIcon(
       )
     case PAYMENT_TYPES.XUNHU:
       return (
-        <CreditCard
+        <SiWechat
           className={className}
-          style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.XUNHU] }}
+          style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.WECHAT] }}
         />
       )
     default:

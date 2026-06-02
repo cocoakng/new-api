@@ -107,9 +107,9 @@ func GetTopUpInfo(c *gin.Context) {
 
 		if !hasXunhu {
 			payMethods = append(payMethods, map[string]string{
-				"name":      "虎皮椒",
+				"name":      "微信",
 				"type":      model.PaymentMethodXunhu,
-				"color":     "rgba(var(--semi-red-5), 1)",
+				"color":     "rgba(var(--semi-green-5), 1)",
 				"min_topup": strconv.Itoa(setting.XunhuMinTopUp),
 			})
 		}
