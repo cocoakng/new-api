@@ -341,10 +341,15 @@ func XunhuWebhook(c *gin.Context) {
 		return
 	}
 
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 验签成功 trade_order_id=%s trade_status=%s", params["trade_order_id"], params["trade_status"]))
+	// 虎皮椒使用 status 字段，兼容 trade_status
+	tradeStatus := params["trade_status"]
+	if tradeStatus == "" {
+		tradeStatus = params["status"]
+	}
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 验签成功 trade_order_id=%s trade_status=%s", params["trade_order_id"], tradeStatus))
 
 	// 处理支付成功回调
-	if params["trade_status"] == "OD" { // OD = 支付成功
+	if tradeStatus == "OD" { // OD = 支付成功
 		tradeNo := params["trade_order_id"]
 		if tradeNo == "" {
 			logger.LogWarn(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 缺少 trade_order_id path=%q", c.Request.RequestURI))
@@ -391,7 +396,7 @@ func XunhuWebhook(c *gin.Context) {
 
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf("虎皮椒 充值成功 trade_no=%s user_id=%d amount=%d money=%.2f", tradeNo, topUp.UserId, topUp.Amount, topUp.Money))
 	} else {
-		logger.LogInfo(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 忽略事件 trade_order_id=%s trade_status=%s", params["trade_order_id"], params["trade_status"]))
+		logger.LogInfo(c.Request.Context(), fmt.Sprintf("虎皮椒 webhook 忽略事件 trade_order_id=%s trade_status=%s", params["trade_order_id"], tradeStatus))
 	}
 
 	c.JSON(http.StatusOK, gin.H{"errmsg": "ok"})
