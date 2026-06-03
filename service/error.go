@@ -104,6 +104,9 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 
 	err = common.Unmarshal(responseBody, &errResponse)
 	if err != nil {
+		// Debug: log raw upstream error body
+		logger.LogError(ctx, fmt.Sprintf("[DEBUG] raw error body (first 500 bytes): %s", common.LocalLogPreview(string(responseBody))))
+
 		// JSON parse failed — try extracting error from SSE-formatted response.
 		// Upstream may return SSE errors like:
 		//   event: error
