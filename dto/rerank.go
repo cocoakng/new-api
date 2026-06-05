@@ -51,6 +51,10 @@ func (r *RerankRequest) GetReturnDocuments() bool {
 	return *r.ReturnDocuments
 }
 
+func (r *RerankRequest) GetUserSensitiveInputText() string {
+	return r.Query
+}
+
 type RerankResponseResult struct {
 	Document       any     `json:"document,omitempty"`
 	Index          int     `json:"index"`

@@ -371,6 +371,33 @@ func (c *ClaudeRequest) SetModelName(modelName string) {
 	}
 }
 
+// GetUserSensitiveInputText returns the text from the latest user message for sensitive word checking.
+func (c *ClaudeRequest) GetUserSensitiveInputText() string {
+	if len(c.Messages) == 0 {
+		return ""
+	}
+	// Find the last user message
+	for i := len(c.Messages) - 1; i >= 0; i-- {
+		msg := &c.Messages[i]
+		if msg.Role == "user" {
+			if msg.IsStringContent() {
+				return msg.GetStringContent()
+			}
+			content, _ := msg.ParseContent()
+			var texts []string
+			for _, media := range content {
+				if media.Type == "text" {
+					if text := media.GetText(); text != "" {
+						texts = append(texts, text)
+					}
+				}
+			}
+			return strings.Join(texts, "\n")
+		}
+	}
+	return ""
+}
+
 func (c *ClaudeRequest) SearchToolNameByToolCallId(toolCallId string) string {
 	for _, message := range c.Messages {
 		content, _ := message.ParseContent()

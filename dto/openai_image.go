@@ -172,6 +172,10 @@ func (i *ImageRequest) SetModelName(modelName string) {
 	}
 }
 
+func (i *ImageRequest) GetUserSensitiveInputText() string {
+	return i.Prompt
+}
+
 type ImageResponse struct {
 	Data     []ImageData     `json:"data"`
 	Created  int64           `json:"created"`

@@ -51,6 +51,10 @@ func (r *AudioRequest) SetModelName(modelName string) {
 	}
 }
 
+func (r *AudioRequest) GetUserSensitiveInputText() string {
+	return r.Input
+}
+
 type AudioResponse struct {
 	Text string `json:"text"`
 }

@@ -127,18 +127,21 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	needCountToken := constant.CountToken
 	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
 	var meta *types.TokenCountMeta
-	if needSensitiveCheck || needCountToken {
+	if needCountToken {
 		meta = request.GetTokenCountMeta()
-	} else {
+	} else if !needSensitiveCheck {
 		meta = fastTokenCountMetaForPricing(request)
 	}
 
-	if needSensitiveCheck && meta != nil {
-		contains, words := service.CheckSensitiveText(meta.CombineText)
-		if contains {
-			logger.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
-			newAPIError = types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
-			return
+	if needSensitiveCheck {
+		userInputText := request.GetUserSensitiveInputText()
+		if userInputText != "" {
+			contains, words := service.CheckSensitiveText(userInputText)
+			if contains {
+				logger.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
+				newAPIError = types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
+				return
+			}
 		}
 	}
 
