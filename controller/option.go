@@ -134,6 +134,18 @@ func UpdateOption(c *gin.Context) {
 		option.Value = common.Interface2String(option.Value.(float64))
 	case int:
 		option.Value = common.Interface2String(option.Value.(int))
+	case map[string]interface{}, []interface{}:
+		jsonBytes, err := common.Marshal(option.Value)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无效的参数",
+			})
+			return
+		}
+		option.Value = string(jsonBytes)
+	case nil:
+		option.Value = "null"
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}

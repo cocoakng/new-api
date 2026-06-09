@@ -42,6 +42,9 @@ const EMPTY_MODEL = {
   audioOutputPrice: '',
   billingExpr: '',
   requestRuleExpr: '',
+  perSecondTiers: [
+    { label: 'base', maxWidth: null, pricePerSecond: '' },
+  ],
   rawRatios: {
     modelRatio: '',
     completionRatio: '',
@@ -86,6 +89,142 @@ const formatNumber = (value) => {
 const toNormalizedNumber = (value) => {
   const formatted = formatNumber(value);
   return formatted === '' ? null : Number(formatted);
+};
+
+// Parse a v2 per_second expression back into visual tiers.
+// Supports both resolution-based and width-based expressions:
+//   v2:has(param("resolution"), "1080") ? tier("label", duration * price) : ...
+//   v2:param("width") <= N ? tier("label", duration * price) : ...
+const parsePerSecondExprToTiers = (expr) => {
+  if (!expr || !expr.startsWith('v2:')) return [];
+  const body = expr.slice(3).trim();
+
+  const tiers = [];
+  // Match all tier("label", duration * price) or tier("label", price * duration)
+  const tierRegex = /tier\s*\(\s*"([^"]+)"\s*,\s*(.+?)\s*\)/g;
+  let match;
+  while ((match = tierRegex.exec(body)) !== null) {
+    const label = match[1];
+    const costExpr = match[2].trim();
+    // Extract price from "duration * N" or "N * duration" or "duration * N + M" etc.
+    let pricePerSecond = '';
+    const durMult = costExpr.match(/duration\s*\*\s*([\d.]+)/);
+    const multDur = costExpr.match(/([\d.]+)\s*\*\s*duration/);
+    if (durMult) {
+      pricePerSecond = durMult[1];
+    } else if (multDur) {
+      pricePerSecond = multDur[1];
+    }
+    tiers.push({ label, resolution: null, maxWidth: null, pricePerSecond });
+  }
+
+  if (tiers.length > 0) {
+    // Try resolution-based conditions first: has(param("resolution"), "1080")
+    const resRegex = /has\s*\(\s*param\s*\(\s*"resolution"\s*\)\s*,\s*"([^"]+)"\s*\)/g;
+    let resMatch;
+    const resConditions = [];
+    while ((resMatch = resRegex.exec(body)) !== null) {
+      resConditions.push(resMatch[1]);
+    }
+
+    // Try width-based conditions: param("width") <= N
+    const condRegex = /param\s*\(\s*"width"\s*\)\s*([<>=]+)\s*(\d+)/g;
+    let condMatch;
+    const widthConditions = [];
+    while ((condMatch = condRegex.exec(body)) !== null) {
+      widthConditions.push({ op: condMatch[1], value: parseInt(condMatch[2]) });
+    }
+
+    // Assign based on which pattern was found (resolution takes priority)
+    if (resConditions.length > 0) {
+      for (let i = 0; i < tiers.length && i < resConditions.length; i++) {
+        tiers[i].resolution = resConditions[i];
+      }
+    } else if (widthConditions.length > 0) {
+      for (let i = 0; i < tiers.length && i < widthConditions.length; i++) {
+        const cond = widthConditions[i];
+        if (cond.op === '<=') {
+          tiers[i].maxWidth = cond.value;
+        } else if (cond.op === '<') {
+          tiers[i].maxWidth = cond.value - 1;
+        }
+      }
+    }
+    // Sort by numeric value ascending (null = catch-all = last)
+    tiers.sort((a, b) => {
+      const aVal = a.resolution !== null ? parseResolutionNum(a.resolution) : (a.maxWidth ?? Infinity);
+      const bVal = b.resolution !== null ? parseResolutionNum(b.resolution) : (b.maxWidth ?? Infinity);
+      if (aVal === Infinity && bVal !== Infinity) return 1;
+      if (bVal === Infinity && aVal !== Infinity) return -1;
+      return aVal - bVal;
+    });
+  }
+
+  return tiers;
+};
+
+const parseResolutionNum = (res) => {
+  if (!res) return Infinity;
+  const m = res.match(/(\d+)/);
+  return m ? parseInt(m[1]) : Infinity;
+};
+
+// Build a v2 per_second expression from visual tiers.
+// Supports two modes based on which field is populated:
+//   - resolution mode: has(param("resolution"), "1080") ? tier(...) : ...
+//   - width mode:      param("width") <= N ? tier(...) : ...
+const buildPerSecondExprFromTiers = (tiers) => {
+  if (!tiers || tiers.length === 0) return '';
+  const validTiers = tiers.filter((t) => hasValue(t.pricePerSecond));
+  if (validTiers.length === 0) return '';
+
+  // Detect mode: if any tier has resolution, use resolution mode
+  const useResolution = validTiers.some(t => t.resolution !== null && t.resolution !== '');
+
+  const sorted = [...validTiers].sort((a, b) => {
+    const aVal = useResolution ? parseResolutionNum(a.resolution) : (a.maxWidth ?? Infinity);
+    const bVal = useResolution ? parseResolutionNum(b.resolution) : (b.maxWidth ?? Infinity);
+    if (aVal === Infinity && bVal !== Infinity) return 1;
+    if (bVal === Infinity && aVal !== Infinity) return -1;
+    return aVal - bVal;
+  });
+
+  let expr = '';
+  for (let i = 0; i < sorted.length; i++) {
+    const tier = sorted[i];
+    const tierExpr = `tier("${tier.label}", duration * ${tier.pricePerSecond})`;
+    const matchValue = useResolution ? tier.resolution : tier.maxWidth;
+
+    if (matchValue !== null && matchValue !== '') {
+      if (useResolution) {
+        if (expr) {
+          expr = `has(param("resolution"), "${matchValue}") ? ${tierExpr} : ${expr}`;
+        } else {
+          expr = `has(param("resolution"), "${matchValue}") ? ${tierExpr} : `;
+        }
+      } else {
+        if (expr) {
+          expr = `param("width") <= ${matchValue} ? ${tierExpr} : ${expr}`;
+        } else {
+          expr = `param("width") <= ${matchValue} ? ${tierExpr} : `;
+        }
+      }
+    } else {
+      // Catch-all tier
+      if (expr) {
+        expr = expr + tierExpr;
+      } else {
+        expr = tierExpr;
+      }
+    }
+  }
+
+  // Clean up trailing " : " if the last tier was a catch-all
+  if (expr.endsWith(': ')) {
+    expr = expr.slice(0, -2);
+  }
+
+  return `v2:${expr}`;
 };
 
 const parseOptionJSON = (rawValue) => {
@@ -133,6 +272,20 @@ const buildModelState = (name, sourceMaps) => {
       billingMode: 'tiered_expr',
       billingExpr,
       requestRuleExpr,
+      rawRatios: { ...EMPTY_MODEL.rawRatios },
+      hasConflict: false,
+    };
+  }
+
+  if (billingMode === 'per_second') {
+    const fullBillingExpr = sourceMaps.PerSecondExpr?.[name] || '';
+    const perSecondTiers = parsePerSecondExprToTiers(fullBillingExpr);
+    return {
+      ...EMPTY_MODEL,
+      name,
+      billingMode: 'per_second',
+      billingExpr: fullBillingExpr,
+      perSecondTiers: perSecondTiers.length > 0 ? perSecondTiers : EMPTY_MODEL.perSecondTiers,
       rawRatios: { ...EMPTY_MODEL.rawRatios },
       hasConflict: false,
     };
@@ -225,6 +378,7 @@ const buildModelState = (name, sourceMaps) => {
 
 export const isBasePricingUnset = (model) =>
   model.billingMode !== 'tiered_expr' &&
+  model.billingMode !== 'per_second' &&
   !hasValue(model.fixedPrice) && !hasValue(model.inputPrice);
 
 export const getModelWarnings = (model, t) => {
@@ -232,6 +386,10 @@ export const getModelWarnings = (model, t) => {
     return [];
   }
   if (model.billingMode === 'tiered_expr') {
+    return [];
+  }
+
+  if (model.billingMode === 'per_second') {
     return [];
   }
   const warnings = [];
@@ -307,6 +465,14 @@ export const buildSummaryText = (model, t) => {
     return `${t('按次')} $${model.fixedPrice} / ${t('次')}${requestRuleSuffix}`;
   }
 
+  if (model.billingMode === 'per_second') {
+    const validTiers = (model.perSecondTiers || []).filter(t => hasValue(t.pricePerSecond));
+    if (validTiers.length > 0) {
+      return `${t('按秒计费')} (${validTiers.length} ${t('档')})`;
+    }
+    return `${t('按秒计费')}${requestRuleSuffix}`;
+  }
+
   if (hasValue(model.inputPrice)) {
     const extraCount = [
       model.completionPrice,
@@ -350,6 +516,12 @@ const serializeModel = (model, t) => {
     if (hasValue(model.fixedPrice)) {
       result.ModelPrice = toNormalizedNumber(model.fixedPrice);
     }
+    return result;
+  }
+
+  if (model.billingMode === 'per_second') {
+    // per_second models don't have traditional price/ratio fields
+    // The expression is handled separately in handleSubmit
     return result;
   }
 
@@ -482,6 +654,26 @@ export const buildPreviewRows = (model, t) => {
             : finalBillingExpr.length > 60
               ? finalBillingExpr.slice(0, 60) + '...'
               : finalBillingExpr,
+      });
+    }
+    return rows;
+  }
+
+  if (model.billingMode === 'per_second') {
+    const rows = [
+      {
+        key: 'BillingMode',
+        label: 'ModelBillingMode',
+        value: 'per_second',
+      },
+    ];
+    const validTiers = (model.perSecondTiers || []).filter(t => hasValue(t.pricePerSecond));
+    if (validTiers.length > 0) {
+      const expr = buildPerSecondExprFromTiers(model.perSecondTiers);
+      rows.push({
+        key: 'BillingExpr',
+        label: 'ModelBillingExpr',
+        value: expr.length > 60 ? expr.slice(0, 60) + '...' : expr,
       });
     }
     return rows;
@@ -648,6 +840,7 @@ export function useModelPricingEditorState({
       AudioCompletionRatio: parseOptionJSON(options.AudioCompletionRatio),
       ModelBillingMode: parseOptionJSON(options['billing_setting.billing_mode']),
       ModelBillingExpr: parseOptionJSON(options['billing_setting.billing_expr']),
+      PerSecondExpr: parseOptionJSON(options['billing_setting.per_second_expr']),
     };
 
     const names = new Set([
@@ -879,6 +1072,11 @@ export function useModelPricingEditorState({
       if (value === 'tiered_expr' && !model.billingExpr) {
         next.billingExpr = 'tier("base", p * 0 + c * 0)';
       }
+      if (value === 'per_second' && (!model.perSecondTiers || model.perSecondTiers.length === 0)) {
+        next.perSecondTiers = [
+          { label: 'base', maxWidth: null, pricePerSecond: '0.05' },
+        ];
+      }
       return next;
     });
   };
@@ -896,6 +1094,14 @@ export function useModelPricingEditorState({
     upsertModel(selectedModel.name, (model) => ({
       ...model,
       requestRuleExpr: newExpr,
+    }));
+  };
+
+  const handlePerSecondTiersChange = (newTiers) => {
+    if (!selectedModel) return;
+    upsertModel(selectedModel.name, (model) => ({
+      ...model,
+      perSecondTiers: newTiers,
     }));
   };
 
@@ -1039,6 +1245,10 @@ export function useModelPricingEditorState({
         'billing_setting.billing_expr': {},
       };
 
+      const perSecondOutput = {
+        'billing_setting.per_second_expr': {},
+      };
+
       for (const model of models) {
         if (model.billingMode === 'tiered_expr') {
           const finalBillingExpr = combineBillingExpr(
@@ -1048,6 +1258,14 @@ export function useModelPricingEditorState({
           if (finalBillingExpr) {
             tieredOutput['billing_setting.billing_mode'][model.name] = 'tiered_expr';
             tieredOutput['billing_setting.billing_expr'][model.name] = finalBillingExpr;
+          }
+        }
+
+        if (model.billingMode === 'per_second') {
+          const expr = buildPerSecondExprFromTiers(model.perSecondTiers);
+          if (expr) {
+            tieredOutput['billing_setting.billing_mode'][model.name] = 'per_second';
+            perSecondOutput['billing_setting.per_second_expr'][model.name] = expr;
           }
         }
 
@@ -1063,7 +1281,7 @@ export function useModelPricingEditorState({
             }
           });
         } catch (e) {
-          if (model.billingMode !== 'tiered_expr') {
+          if (model.billingMode !== 'tiered_expr' && model.billingMode !== 'per_second') {
             throw e;
           }
         }
@@ -1082,6 +1300,14 @@ export function useModelPricingEditorState({
             value: JSON.stringify(value, null, 2),
           }),
         ),
+        ...Object.entries(perSecondOutput).map(([key, value]) =>
+          Object.keys(value).length > 0
+            ? API.put('/api/option/', {
+                key,
+                value: JSON.stringify(value, null, 2),
+              })
+            : null,
+        ).filter(Boolean),
       ];
 
       const results = await Promise.all(requestQueue);
@@ -1125,6 +1351,7 @@ export function useModelPricingEditorState({
     handleBillingModeChange,
     handleBillingExprChange,
     handleRequestRuleExprChange,
+    handlePerSecondTiersChange,
     handleSubmit,
     addModel,
     deleteModel,

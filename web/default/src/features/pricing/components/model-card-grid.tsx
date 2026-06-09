@@ -32,6 +32,9 @@ export interface ModelCardGridProps {
   onModelClick: (modelName: string) => void
   priceRate?: number
   usdExchangeRate?: number
+  quotaDisplayType?: string
+  customCurrencySymbol?: string
+  customCurrencyExchangeRate?: number
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
 }
@@ -78,6 +81,9 @@ export function ModelCardGrid(props: ModelCardGridProps) {
             tokenUnit={tokenUnit}
             priceRate={props.priceRate}
             usdExchangeRate={props.usdExchangeRate}
+            quotaDisplayType={props.quotaDisplayType}
+            customCurrencySymbol={props.customCurrencySymbol}
+            customCurrencyExchangeRate={props.customCurrencyExchangeRate}
             showRechargePrice={props.showRechargePrice}
             perf={perfMap.get(model.model_name || '')}
             onClick={() => props.onModelClick(model.model_name || '')}

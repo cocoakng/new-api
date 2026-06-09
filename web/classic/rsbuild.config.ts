@@ -1,7 +1,7 @@
 import path from 'path'
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
-import { defineConfig, loadEnv } from '@rsbuild/core'
+import { defineConfig, loadEnv, rspack } from '@rsbuild/core'
 import { pluginReact } from '@rsbuild/plugin-react'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -10,6 +10,7 @@ const semiUiDir = path.resolve(
   path.dirname(require.resolve('@douyinfe/semi-ui')),
   '../..',
 )
+const reactDomShim = path.resolve(__dirname, './src/shims/react-dom.js')
 
 export default defineConfig(({ envMode }) => {
   const env = loadEnv({ mode: envMode, prefixes: ['VITE_'] })
@@ -43,6 +44,10 @@ export default defineConfig(({ envMode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+        '@douyinfe/semi-ui/react19-adapter': path.resolve(
+          __dirname,
+          './src/shims/semi-react19-adapter.js',
+        ),
         '@douyinfe/semi-ui/dist/css/semi.css': path.resolve(
           semiUiDir,
           'dist/css/semi.css',
@@ -55,6 +60,7 @@ export default defineConfig(({ envMode }) => {
     server: {
       host: '0.0.0.0',
       strictPort: true,
+      port: 3001,
       proxy: devProxy,
     },
     output: {
@@ -100,6 +106,24 @@ export default defineConfig(({ envMode }) => {
             },
           ],
         },
+        optimization: {
+          moduleIds: 'named',
+        },
+        resolve: {
+          fullySpecified: false,
+        },
+        plugins: [
+          // Replace react-dom imports from semi-ui with our shim
+          // This avoids circular alias issues — only semi-ui gets the shim
+          new rspack.NormalModuleReplacementPlugin(
+            /^react-dom$/,
+            (resource) => {
+              if (resource.context && resource.context.includes('@douyinfe/semi-ui')) {
+                resource.request = reactDomShim;
+              }
+            },
+          ),
+        ],
       },
     },
   }

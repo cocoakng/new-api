@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -122,6 +122,15 @@ const modelSchema = z.object({
     }
   }),
   BillingExpr: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
+  PerSecondExpr: z.string().superRefine((value, ctx) => {
     const result = validateJsonString(value)
     if (!result.valid) {
       ctx.addIssue({
@@ -249,6 +258,7 @@ export function RatioSettingsCard({
     ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
     BillingMode: normalizeJsonString(modelDefaults.BillingMode),
     BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
+    PerSecondExpr: normalizeJsonString(modelDefaults.PerSecondExpr ?? '{}'),
   })
 
   const groupNormalizedDefaults = useRef({
@@ -280,6 +290,7 @@ export function RatioSettingsCard({
       ),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
+      PerSecondExpr: formatJsonForTextarea(modelDefaults.PerSecondExpr ?? '{}'),
     },
   })
 
@@ -299,6 +310,40 @@ export function RatioSettingsCard({
     },
   })
 
+  // Use a stable string representation of defaults to avoid resetting the form
+  // on every parent re-render (modelDefaults is a new object each render).
+  const modelDefaultsKey = useMemo(
+    () =>
+      JSON.stringify({
+        ModelPrice: modelDefaults.ModelPrice,
+        ModelRatio: modelDefaults.ModelRatio,
+        CacheRatio: modelDefaults.CacheRatio,
+        CreateCacheRatio: modelDefaults.CreateCacheRatio,
+        CompletionRatio: modelDefaults.CompletionRatio,
+        ImageRatio: modelDefaults.ImageRatio,
+        AudioRatio: modelDefaults.AudioRatio,
+        AudioCompletionRatio: modelDefaults.AudioCompletionRatio,
+        ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
+        BillingMode: modelDefaults.BillingMode,
+        BillingExpr: modelDefaults.BillingExpr,
+        PerSecondExpr: modelDefaults.PerSecondExpr,
+      }),
+    [
+      modelDefaults.ModelPrice,
+      modelDefaults.ModelRatio,
+      modelDefaults.CacheRatio,
+      modelDefaults.CreateCacheRatio,
+      modelDefaults.CompletionRatio,
+      modelDefaults.ImageRatio,
+      modelDefaults.AudioRatio,
+      modelDefaults.AudioCompletionRatio,
+      modelDefaults.ExposeRatioEnabled,
+      modelDefaults.BillingMode,
+      modelDefaults.BillingExpr,
+      modelDefaults.PerSecondExpr,
+    ]
+  )
+
   useEffect(() => {
     modelNormalizedDefaults.current = {
       ModelPrice: normalizeJsonString(modelDefaults.ModelPrice),
@@ -314,6 +359,7 @@ export function RatioSettingsCard({
       ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
       BillingMode: normalizeJsonString(modelDefaults.BillingMode),
       BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
+      PerSecondExpr: normalizeJsonString(modelDefaults.PerSecondExpr ?? '{}'),
     }
 
     modelForm.reset({
@@ -330,8 +376,31 @@ export function RatioSettingsCard({
       ),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
+      PerSecondExpr: formatJsonForTextarea(modelDefaults.PerSecondExpr ?? '{}'),
     })
-  }, [modelDefaults, modelForm])
+  }, [modelDefaultsKey])
+
+  const groupDefaultsKey = useMemo(
+    () =>
+      JSON.stringify({
+        GroupRatio: groupDefaults.GroupRatio,
+        TopupGroupRatio: groupDefaults.TopupGroupRatio,
+        UserUsableGroups: groupDefaults.UserUsableGroups,
+        GroupGroupRatio: groupDefaults.GroupGroupRatio,
+        AutoGroups: groupDefaults.AutoGroups,
+        DefaultUseAutoGroup: groupDefaults.DefaultUseAutoGroup,
+        GroupSpecialUsableGroup: groupDefaults.GroupSpecialUsableGroup,
+      }),
+    [
+      groupDefaults.GroupRatio,
+      groupDefaults.TopupGroupRatio,
+      groupDefaults.UserUsableGroups,
+      groupDefaults.GroupGroupRatio,
+      groupDefaults.AutoGroups,
+      groupDefaults.DefaultUseAutoGroup,
+      groupDefaults.GroupSpecialUsableGroup,
+    ]
+  )
 
   useEffect(() => {
     groupNormalizedDefaults.current = {
@@ -357,7 +426,7 @@ export function RatioSettingsCard({
         groupDefaults.GroupSpecialUsableGroup
       ),
     })
-  }, [groupDefaults, groupForm])
+  }, [groupDefaultsKey])
 
   const saveModelRatios = useCallback(
     async (values: ModelFormValues) => {
@@ -373,11 +442,13 @@ export function RatioSettingsCard({
         ExposeRatioEnabled: values.ExposeRatioEnabled,
         BillingMode: normalizeJsonString(values.BillingMode),
         BillingExpr: normalizeJsonString(values.BillingExpr),
+        PerSecondExpr: normalizeJsonString(values.PerSecondExpr),
       }
 
       const apiKeyMap: Record<string, string> = {
         BillingMode: 'billing_setting.billing_mode',
         BillingExpr: 'billing_setting.billing_expr',
+        PerSecondExpr: 'billing_setting.per_second_expr',
       }
 
       const updates = (
@@ -494,6 +565,7 @@ export function RatioSettingsCard({
           AudioCompletionRatio: modelDefaults.AudioCompletionRatio,
           'billing_setting.billing_mode': modelDefaults.BillingMode,
           'billing_setting.billing_expr': modelDefaults.BillingExpr,
+          'billing_setting.per_second_expr': modelDefaults.PerSecondExpr ?? '{}',
         }}
       />
     )

@@ -23,6 +23,9 @@ func ParseExprVersion(exprStr string) (version int, body string) {
 	if strings.HasPrefix(exprStr, "v1:") {
 		return 1, exprStr[3:]
 	}
+	if strings.HasPrefix(exprStr, "v2:") {
+		return 2, exprStr[3:]
+	}
 	return DefaultExprVersion, exprStr
 }
 
@@ -39,30 +42,31 @@ var (
 
 // compileEnvPrototypeV1 is the v1 type-checking prototype used at compile time.
 var compileEnvPrototypeV1 = map[string]interface{}{
-	"p":    float64(0),
-	"c":    float64(0),
-	"len":  float64(0),
-	"cr":   float64(0),
-	"cc":   float64(0),
-	"cc1h": float64(0),
-	"img":  float64(0),
-	"img_o": float64(0),
-	"ai":   float64(0),
-	"ao":   float64(0),
-	"tier":                   func(string, float64) float64 { return 0 },
-	"header":                 func(string) string { return "" },
-	"param":                  func(string) interface{} { return nil },
-	"has":                    func(interface{}, string) bool { return false },
-	"hour":                   func(string) int { return 0 },
-	"minute":                 func(string) int { return 0 },
-	"weekday":                func(string) int { return 0 },
-	"month":                  func(string) int { return 0 },
-	"day":                    func(string) int { return 0 },
-	"max":                    math.Max,
-	"min":                    math.Min,
-	"abs":                    math.Abs,
-	"ceil":                   math.Ceil,
-	"floor":                  math.Floor,
+	"p":        float64(0),
+	"c":        float64(0),
+	"len":      float64(0),
+	"cr":       float64(0),
+	"cc":       float64(0),
+	"cc1h":     float64(0),
+	"img":      float64(0),
+	"img_o":    float64(0),
+	"ai":       float64(0),
+	"ao":       float64(0),
+	"duration": float64(0),
+	"tier":     func(string, float64) float64 { return 0 },
+	"header":   func(string) string { return "" },
+	"param":    func(string) interface{} { return nil },
+	"has":      func(interface{}, string) bool { return false },
+	"hour":     func(string) int { return 0 },
+	"minute":   func(string) int { return 0 },
+	"weekday":  func(string) int { return 0 },
+	"month":    func(string) int { return 0 },
+	"day":      func(string) int { return 0 },
+	"max":      math.Max,
+	"min":      math.Min,
+	"abs":      math.Abs,
+	"ceil":     math.Ceil,
+	"floor":    math.Floor,
 }
 
 func getCompileEnv(version int) map[string]interface{} {

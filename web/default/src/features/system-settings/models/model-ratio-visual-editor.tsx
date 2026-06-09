@@ -38,6 +38,7 @@ import { useMediaQuery } from '@/hooks'
 import { Copy, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -78,6 +79,7 @@ type ModelRatioVisualEditorProps = {
   audioCompletionRatio: string
   billingMode: string
   billingExpr: string
+  perSecondExpr: string
   onChange: (field: string, value: string) => void
 }
 
@@ -93,6 +95,7 @@ type ModelRow = {
   audioCompletionRatio?: string
   billingMode?: string
   billingExpr?: string
+  perSecondExpr?: string
   requestRuleExpr?: string
   hasConflict: boolean
 }
@@ -125,12 +128,14 @@ const filterBySelectedValues = (
 const getModeLabel = (mode?: string) => {
   if (mode === 'per-request') return 'Per-request'
   if (mode === 'tiered_expr') return 'Expression'
+  if (mode === 'per_second') return 'Per-second'
   return 'Per-token'
 }
 
 const getModeVariant = (mode?: string): 'warning' | 'info' | 'success' => {
   if (mode === 'per-request') return 'warning'
   if (mode === 'tiered_expr') return 'info'
+  if (mode === 'per_second') return 'warning'
   return 'success'
 }
 
@@ -142,12 +147,18 @@ const getExpressionSummary = (row: ModelRow, t: (key: string) => string) => {
   return t('Expression pricing')
 }
 
-const getPriceSummary = (row: ModelRow, t: (key: string) => string) => {
+const getPriceSummary = (row: ModelRow, t: (key: string) => string, currencySymbol: string) => {
   if (row.billingMode === 'tiered_expr') {
     return getExpressionSummary(row, t)
   }
+  if (row.billingMode === 'per_second') {
+    const tierCount = (row.perSecondExpr?.match(/tier\(/g) || []).length
+    return tierCount > 0
+      ? `${t('Per second')} · ${tierCount} ${t('tiers')}`
+      : t('Per second')
+  }
   if (row.billingMode === 'per-request') {
-    return row.price ? `$${row.price} / ${t('request')}` : t('Unset price')
+    return row.price ? `${currencySymbol}${row.price} / ${t('request')}` : t('Unset price')
   }
 
   const inputPrice = ratioToPrice(row.ratio)
@@ -163,15 +174,18 @@ const getPriceSummary = (row: ModelRow, t: (key: string) => string) => {
   ].filter(hasValue).length
 
   return extraCount > 0
-    ? `${t('Input')} $${inputPrice} · ${extraCount} ${t('extras')}`
-    : `${t('Input')} $${inputPrice}`
+    ? `${t('Input')} ${currencySymbol}${inputPrice} · ${extraCount} ${t('extras')}`
+    : `${t('Input')} ${currencySymbol}${inputPrice}`
 }
 
-const getPriceDetail = (row: ModelRow, t: (key: string) => string) => {
+const getPriceDetail = (row: ModelRow, t: (key: string) => string, currencySymbol: string) => {
   if (row.billingMode === 'tiered_expr') {
     return row.requestRuleExpr
       ? t('Includes request rules')
       : t('Expression based')
+  }
+  if (row.billingMode === 'per_second') {
+    return t('Duration-based pricing')
   }
   if (row.billingMode === 'per-request') {
     return t('Fixed request price')
@@ -182,11 +196,11 @@ const getPriceDetail = (row: ModelRow, t: (key: string) => string) => {
 
   const details = [
     row.completionRatio &&
-      `${t('Output')} $${ratioToPrice(row.completionRatio, inputPrice)}`,
+      `${t('Output')} ${currencySymbol}${ratioToPrice(row.completionRatio, inputPrice)}`,
     row.cacheRatio &&
-      `${t('Cache')} $${ratioToPrice(row.cacheRatio, inputPrice)}`,
+      `${t('Cache')} ${currencySymbol}${ratioToPrice(row.cacheRatio, inputPrice)}`,
     row.createCacheRatio &&
-      `${t('Cache write')} $${ratioToPrice(row.createCacheRatio, inputPrice)}`,
+      `${t('Cache write')} ${currencySymbol}${ratioToPrice(row.createCacheRatio, inputPrice)}`,
   ].filter(Boolean)
 
   return details.length > 0 ? details.join(' · ') : t('Base input price only')
@@ -204,9 +218,16 @@ export const ModelRatioVisualEditor = memo(
     audioCompletionRatio,
     billingMode,
     billingExpr,
+    perSecondExpr,
     onChange,
   }: ModelRatioVisualEditorProps) {
     const { t } = useTranslation()
+    const currency = useSystemConfigStore((s) => s.config.currency)
+    const currencySymbol = (() => {
+      if (currency?.quotaDisplayType === 'CNY') return '¥'
+      if (currency?.quotaDisplayType === 'CUSTOM') return currency.customCurrencySymbol ?? '¤'
+      return '$'
+    })()
     const isMobile = useMediaQuery('(max-width: 767px)')
     const [sheetOpen, setSheetOpen] = useState(false)
     const [editorOpen, setEditorOpen] = useState(false)
@@ -305,6 +326,13 @@ export const ModelRatioVisualEditor = memo(
           context: 'billing expression',
         }
       )
+      const perSecondExprMap = safeJsonParse<Record<string, string>>(
+        perSecondExpr,
+        {
+          fallback: {},
+          context: 'per second expression',
+        }
+      )
 
       const modelNames = new Set([
         ...Object.keys(priceMap),
@@ -317,6 +345,7 @@ export const ModelRatioVisualEditor = memo(
         ...Object.keys(audioCompletionMap),
         ...Object.keys(billingModeMap),
         ...Object.keys(billingExprMap),
+        ...Object.keys(perSecondExprMap),
       ])
 
       const modelData: ModelRow[] = Array.from(modelNames).map((name) => {
@@ -342,6 +371,23 @@ export const ModelRatioVisualEditor = memo(
             billingMode: 'tiered_expr',
             billingExpr: pureExpr,
             requestRuleExpr,
+            price,
+            ratio,
+            cacheRatio: cache,
+            createCacheRatio: createCache,
+            completionRatio: completion,
+            imageRatio: image,
+            audioRatio: audio,
+            audioCompletionRatio: audioCompletion,
+            hasConflict: false,
+          }
+        }
+
+        if (modeForModel === 'per_second') {
+          return {
+            name,
+            billingMode: 'per_second',
+            perSecondExpr: perSecondExprMap[name] || '',
             price,
             ratio,
             cacheRatio: cache,
@@ -389,6 +435,7 @@ export const ModelRatioVisualEditor = memo(
       audioCompletionRatio,
       billingMode,
       billingExpr,
+      perSecondExpr,
     ])
 
     const modeCounts = useMemo(
@@ -397,7 +444,8 @@ export const ModelRatioVisualEditor = memo(
           (acc, model) => {
             const mode =
               model.billingMode === 'per-request' ||
-              model.billingMode === 'tiered_expr'
+              model.billingMode === 'tiered_expr' ||
+              model.billingMode === 'per_second'
                 ? model.billingMode
                 : 'per-token'
             acc[mode] += 1
@@ -407,7 +455,8 @@ export const ModelRatioVisualEditor = memo(
             'per-token': 0,
             'per-request': 0,
             tiered_expr: 0,
-          } as Record<'per-token' | 'per-request' | 'tiered_expr', number>
+            per_second: 0,
+          } as Record<'per-token' | 'per-request' | 'tiered_expr' | 'per_second', number>
         ),
       [models]
     )
@@ -427,10 +476,13 @@ export const ModelRatioVisualEditor = memo(
           billingMode:
             model.billingMode === 'tiered_expr'
               ? 'tiered_expr'
-              : model.price && model.price !== ''
-                ? 'per-request'
-                : 'per-token',
+              : model.billingMode === 'per_second'
+                ? 'per_second'
+                : model.price && model.price !== ''
+                  ? 'per-request'
+                  : 'per-token',
           billingExpr: model.billingExpr,
+          perSecondExpr: model.perSecondExpr,
           requestRuleExpr: model.requestRuleExpr,
         })
         setEditorOpen(true)
@@ -509,6 +561,10 @@ export const ModelRatioVisualEditor = memo(
           billingExpr,
           { fallback: {}, silent: true }
         )
+        const perSecondExprMap = safeJsonParse<Record<string, string>>(
+          perSecondExpr,
+          { fallback: {}, silent: true }
+        )
 
         delete priceMap[name]
         delete ratioMap[name]
@@ -520,6 +576,7 @@ export const ModelRatioVisualEditor = memo(
         delete audioCompletionMap[name]
         delete billingModeMap[name]
         delete billingExprMap[name]
+        delete perSecondExprMap[name]
 
         onChange('ModelPrice', JSON.stringify(priceMap, null, 2))
         onChange('ModelRatio', JSON.stringify(ratioMap, null, 2))
@@ -540,6 +597,10 @@ export const ModelRatioVisualEditor = memo(
           'billing_setting.billing_expr',
           JSON.stringify(billingExprMap, null, 2)
         )
+        onChange(
+          'billing_setting.per_second_expr',
+          JSON.stringify(perSecondExprMap, null, 2)
+        )
       },
       [
         modelPrice,
@@ -552,6 +613,7 @@ export const ModelRatioVisualEditor = memo(
         audioCompletionRatio,
         billingMode,
         billingExpr,
+        perSecondExpr,
         onChange,
       ]
     )
@@ -633,16 +695,16 @@ export const ModelRatioVisualEditor = memo(
           cell: ({ row }) => (
             <div className='flex min-w-[180px] flex-col gap-1'>
               <span className='font-medium'>
-                {getPriceSummary(row.original, t)}
+                {getPriceSummary(row.original, t, currencySymbol)}
               </span>
               <span className='text-muted-foreground max-w-[320px] truncate text-xs'>
-                {getPriceDetail(row.original, t)}
+                {getPriceDetail(row.original, t, currencySymbol)}
               </span>
             </div>
           ),
           sortingFn: (rowA, rowB) =>
-            getPriceSummary(rowA.original, t).localeCompare(
-              getPriceSummary(rowB.original, t)
+            getPriceSummary(rowA.original, t, currencySymbol).localeCompare(
+              getPriceSummary(rowB.original, t, currencySymbol)
             ),
           meta: { label: t('Price summary') },
         },
@@ -744,6 +806,10 @@ export const ModelRatioVisualEditor = memo(
           billingExpr,
           { fallback: {}, silent: true }
         )
+        const perSecondExprMap = safeJsonParse<Record<string, string>>(
+          perSecondExpr,
+          { fallback: {}, silent: true }
+        )
 
         const setIfPresent = (
           target: Record<string, number>,
@@ -766,6 +832,7 @@ export const ModelRatioVisualEditor = memo(
           delete audioCompletionMap[name]
           delete billingModeMap[name]
           delete billingExprMap[name]
+          delete perSecondExprMap[name]
 
           if (data.billingMode === 'tiered_expr') {
             const combined = combineBillingExpr(
@@ -788,6 +855,11 @@ export const ModelRatioVisualEditor = memo(
             setIfPresent(imageMap, name, data.imageRatio)
             setIfPresent(audioMap, name, data.audioRatio)
             setIfPresent(audioCompletionMap, name, data.audioCompletionRatio)
+          } else if (data.billingMode === 'per_second') {
+            billingModeMap[name] = 'per_second'
+            if (data.perSecondExpr && data.perSecondExpr !== '') {
+              perSecondExprMap[name] = data.perSecondExpr
+            }
           } else if (data.price && data.price !== '') {
             setIfPresent(priceMap, name, data.price)
           } else {
@@ -820,6 +892,10 @@ export const ModelRatioVisualEditor = memo(
           'billing_setting.billing_expr',
           JSON.stringify(billingExprMap, null, 2)
         )
+        onChange(
+          'billing_setting.per_second_expr',
+          JSON.stringify(perSecondExprMap, null, 2)
+        )
       },
       [
         modelPrice,
@@ -832,6 +908,7 @@ export const ModelRatioVisualEditor = memo(
         audioCompletionRatio,
         billingMode,
         billingExpr,
+        perSecondExpr,
         onChange,
       ]
     )
@@ -898,6 +975,11 @@ export const ModelRatioVisualEditor = memo(
                       label: 'Per-request',
                       value: 'per-request',
                       count: modeCounts['per-request'],
+                    },
+                    {
+                      label: 'Per-second',
+                      value: 'per_second',
+                      count: modeCounts.per_second,
                     },
                     {
                       label: 'Expression',
@@ -1042,6 +1124,7 @@ export const ModelRatioVisualEditor = memo(
       prevProps.audioCompletionRatio === nextProps.audioCompletionRatio &&
       prevProps.billingMode === nextProps.billingMode &&
       prevProps.billingExpr === nextProps.billingExpr &&
+      prevProps.perSecondExpr === nextProps.perSecondExpr &&
       prevProps.onChange === nextProps.onChange
     )
   }

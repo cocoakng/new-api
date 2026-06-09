@@ -40,6 +40,9 @@ import {
   formatRequestPrice,
   stripTrailingZeros,
 } from '../lib/price'
+import {
+  formatPerSecondPrice,
+} from '../lib/per-second-price'
 import type { PricingModel, TokenUnit } from '../types'
 
 // ----------------------------------------------------------------------------
@@ -50,6 +53,9 @@ export interface PricingColumnsOptions {
   tokenUnit?: TokenUnit
   priceRate?: number
   usdExchangeRate?: number
+  quotaDisplayType?: string
+  customCurrencySymbol?: string
+  customCurrencyExchangeRate?: number
   showRechargePrice?: boolean
 }
 
@@ -91,6 +97,9 @@ export function usePricingColumns(
     tokenUnit = DEFAULT_TOKEN_UNIT,
     priceRate = 1,
     usdExchangeRate = 1,
+    quotaDisplayType = 'USD',
+    customCurrencySymbol,
+    customCurrencyExchangeRate,
     showRechargePrice = false,
   } = options
 
@@ -129,11 +138,13 @@ export function usePricingColumns(
       meta: { label: t('Type') },
       header: t('Type'),
       cell: ({ row }) => {
+        const model = row.original
         const isTokenBased = row.original.quota_type === QUOTA_TYPE_VALUES.TOKEN
+        const isPerSecond = row.original.quota_type === QUOTA_TYPE_VALUES.PER_SECOND
         return (
           <StatusBadge
-            label={isTokenBased ? t('Token') : t('Request')}
-            variant={isTokenBased ? 'info' : 'neutral'}
+            label={isPerSecond ? t('Per second') : isTokenBased ? t('Token') : t('Request')}
+            variant={isPerSecond ? 'warning' : isTokenBased ? 'info' : 'neutral'}
             copyable={false}
           />
         )
@@ -208,7 +219,36 @@ export function usePricingColumns(
           )
         }
 
-        const isTokenBased = isTokenBasedModel(model)
+        const isPerSecond =
+          model.billing_mode === 'per_second' && Boolean(model.billing_expr)
+        if (isPerSecond && model.billing_expr) {
+          const summary = formatPerSecondPrice(model.billing_expr, {
+            priceRate,
+            usdExchangeRate,
+            quotaDisplayType,
+            customCurrencySymbol,
+            customCurrencyExchangeRate,
+          })
+          if (summary.length > 0) {
+            return (
+              <div className='min-w-[160px]'>
+                <span className='font-mono text-sm tabular-nums'>
+                  {summary.map((entry, index) => (
+                    <span key={entry.label}>
+                      {index > 0 && (
+                        <span className='text-muted-foreground/40 mx-1'>/</span>
+                      )}
+                      {entry.formatted}
+                    </span>
+                  ))}
+                </span>
+                <div className='text-muted-foreground/50 text-[10px]'>
+                  / {t('second')}
+                </div>
+              </div>
+            )
+          }
+        }
 
         if (isTokenBased) {
           const inputPrice = stripTrailingZeros(

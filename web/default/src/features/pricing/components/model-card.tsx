@@ -31,6 +31,9 @@ import {
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
+import {
+  formatPerSecondPrice,
+} from '../lib/per-second-price'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
 
@@ -39,6 +42,9 @@ export interface ModelCardProps {
   onClick: () => void
   priceRate?: number
   usdExchangeRate?: number
+  quotaDisplayType?: string
+  customCurrencySymbol?: string
+  customCurrencyExchangeRate?: number
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   perf?: ModelPerfBadgeData
@@ -50,6 +56,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const tokenUnit = props.tokenUnit ?? DEFAULT_TOKEN_UNIT
   const priceRate = props.priceRate ?? 1
   const usdExchangeRate = props.usdExchangeRate ?? 1
+  const quotaDisplayType = props.quotaDisplayType ?? 'USD'
+  const customCurrencySymbol = props.customCurrencySymbol
+  const customCurrencyExchangeRate = props.customCurrencyExchangeRate ?? 1
   const showRechargePrice = props.showRechargePrice ?? false
   const isTokenBased = isTokenBasedModel(props.model)
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
@@ -74,6 +83,19 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         groupRatioMultiplier: getDynamicDisplayGroupRatio(props.model),
       })
     : null
+  const isPerSecond =
+    props.model.billing_mode === 'per_second' &&
+    Boolean(props.model.billing_expr)
+  const perSecondSummary = isPerSecond
+    ? formatPerSecondPrice(props.model.billing_expr!, {
+        groupRatio: getDynamicDisplayGroupRatio(props.model),
+        priceRate,
+        usdExchangeRate,
+        quotaDisplayType,
+        customCurrencySymbol,
+        customCurrencyExchangeRate,
+      })
+    : []
 
   const primaryGroup = groups[0]
   const bottomTags = [...endpoints.slice(0, 2), ...tags.slice(0, 2)]
@@ -139,6 +161,21 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                     {t('Dynamic Pricing')}
                   </span>
                 )
+              ) : isPerSecond && perSecondSummary.length > 0 ? (
+                <>
+                  {perSecondSummary.map((entry) => (
+                    <span
+                      key={entry.label}
+                      className='text-muted-foreground whitespace-nowrap'
+                    >
+                      {entry.label}{' '}
+                      <span className='text-foreground font-mono font-semibold'>
+                        {entry.formatted}
+                      </span>
+                      /{t('second')}
+                    </span>
+                  ))}
+                </>
               ) : isTokenBased ? (
                 <>
                   <span className='text-muted-foreground whitespace-nowrap'>
@@ -236,7 +273,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             </span>
           )}
           <span className='text-muted-foreground text-xs font-medium'>
-            {isTokenBased ? t('Token-based') : t('Per Request')}
+            {isPerSecond ? t('Per second') : isTokenBased ? t('Token-based') : t('Per Request')}
           </span>
           {isDynamicPricing && (
             <StatusBadge

@@ -72,6 +72,7 @@ var pricingSyncFields = []string{
 	"model_price",
 	billing_setting.BillingModeField,
 	billing_setting.BillingExprField,
+	billing_setting.PerSecondExprField,
 }
 
 var numericPricingSyncFields = map[string]bool{
@@ -408,6 +409,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			modelPriceMap := make(map[string]float64)
 			billingModeMap := make(map[string]string)
 			billingExprMap := make(map[string]string)
+			perSecondExprMap := make(map[string]string)
 
 			for _, item := range pricingItems {
 				if item.ModelName == "" {
@@ -416,6 +418,10 @@ func FetchUpstreamRatios(c *gin.Context) {
 				if item.BillingMode == billing_setting.BillingModeTieredExpr && strings.TrimSpace(item.BillingExpr) != "" {
 					billingModeMap[item.ModelName] = billing_setting.BillingModeTieredExpr
 					billingExprMap[item.ModelName] = item.BillingExpr
+				}
+				if item.BillingMode == billing_setting.BillingModePerSecond && strings.TrimSpace(item.BillingExpr) != "" {
+					billingModeMap[item.ModelName] = billing_setting.BillingModePerSecond
+					perSecondExprMap[item.ModelName] = item.BillingExpr
 				}
 				if item.QuotaType == 1 {
 					modelPriceMap[item.ModelName] = item.ModelPrice
@@ -486,6 +492,9 @@ func FetchUpstreamRatios(c *gin.Context) {
 			}
 			if len(billingExprMap) > 0 {
 				converted[billing_setting.BillingExprField] = valueMap(billingExprMap)
+			}
+			if len(perSecondExprMap) > 0 {
+				converted[billing_setting.PerSecondExprField] = valueMap(perSecondExprMap)
 			}
 
 			ch <- upstreamResult{Name: uniqueName, Data: converted}

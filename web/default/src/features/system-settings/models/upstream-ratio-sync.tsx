@@ -71,6 +71,7 @@ type UpstreamRatioSyncProps = {
     AudioCompletionRatio: string
     'billing_setting.billing_mode': string
     'billing_setting.billing_expr': string
+    'billing_setting.per_second_expr': string
   }
 }
 
@@ -90,7 +91,7 @@ function getDefaultEndpointForChannel(channel: UpstreamChannel): string {
 
 function getBillingCategory(ratioType: string): 'price' | 'ratio' | 'tiered' {
   if (ratioType === 'model_price') return 'price'
-  if (ratioType === 'billing_mode' || ratioType === 'billing_expr')
+  if (ratioType === 'billing_mode' || ratioType === 'billing_expr' || ratioType === 'per_second_expr')
     return 'tiered'
   return 'ratio'
 }
@@ -99,6 +100,7 @@ function optionKeyBySyncField(ratioType: string): string {
   const explicit: Record<string, string> = {
     billing_mode: 'billing_setting.billing_mode',
     billing_expr: 'billing_setting.billing_expr',
+    per_second_expr: 'billing_setting.per_second_expr',
   }
   if (explicit[ratioType]) return explicit[ratioType]
   return ratioType
@@ -125,6 +127,10 @@ function deleteResolutionField(
   delete newModelRes[ratioType]
   if (ratioType === 'billing_expr') delete newModelRes['billing_mode']
   if (ratioType === 'billing_mode') delete newModelRes['billing_expr']
+  if (ratioType === 'per_second_expr') {
+    delete newModelRes['billing_mode']
+    delete newModelRes['billing_expr']
+  }
   const next = { ...res }
   if (Object.keys(newModelRes).length === 0) {
     delete next[model]
@@ -309,13 +315,19 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
         if (category === 'tiered' && sourceName && modelDiffs) {
           const modeVal = modelDiffs.billing_mode?.upstreams?.[sourceName]
           const exprVal = modelDiffs.billing_expr?.upstreams?.[sourceName]
+          const perSecondVal = modelDiffs.per_second_expr?.upstreams?.[sourceName]
           if (modeVal !== undefined && modeVal !== null && modeVal !== 'same') {
             newModelRes['billing_mode'] = modeVal
           } else if (finalType === 'billing_expr') {
             newModelRes['billing_mode'] = 'tiered_expr'
+          } else if (finalType === 'per_second_expr') {
+            newModelRes['billing_mode'] = 'per_second'
           }
           if (exprVal !== undefined && exprVal !== null && exprVal !== 'same') {
             newModelRes['billing_expr'] = exprVal
+          }
+          if (perSecondVal !== undefined && perSecondVal !== null && perSecondVal !== 'same') {
+            newModelRes['per_second_expr'] = perSecondVal
           }
         }
 
@@ -349,6 +361,9 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
       ),
       'billing_setting.billing_expr': parseJsonRecord<string>(
         modelRatios['billing_setting.billing_expr']
+      ),
+      'billing_setting.per_second_expr': parseJsonRecord<string>(
+        modelRatios['billing_setting.per_second_expr'] ?? '{}'
       ),
     }
   }, [modelRatios])
@@ -389,6 +404,9 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
         },
         'billing_setting.billing_expr': {
           ...currentRatios['billing_setting.billing_expr'],
+        },
+        'billing_setting.per_second_expr': {
+          ...currentRatios['billing_setting.per_second_expr'],
         },
       }
 

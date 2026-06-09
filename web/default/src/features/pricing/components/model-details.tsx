@@ -32,6 +32,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 import {
   Table,
   TableBody,
@@ -60,6 +61,9 @@ import {
   isDynamicPricingModel,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
+import {
+  parsePerSecondTiers,
+} from '../lib/per-second-price'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
 import { inferModelMetadata } from '../lib/model-metadata'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
@@ -303,7 +307,9 @@ function ModelHeader(props: { model: PricingModel }) {
         <span className='text-muted-foreground/70'>
           {model.quota_type === QUOTA_TYPE_VALUES.TOKEN
             ? t('Token-based')
-            : t('Per Request')}
+            : model.quota_type === QUOTA_TYPE_VALUES.PER_SECOND
+              ? t('Pay per second')
+              : t('Per Request')}
         </span>
         {model.billing_mode === 'tiered_expr' && model.billing_expr && (
           <>
@@ -345,6 +351,9 @@ function PriceSection(props: {
   model: PricingModel
   priceRate: number
   usdExchangeRate: number
+  quotaDisplayType?: string
+  customCurrencySymbol?: string
+  customCurrencyExchangeRate?: number
   tokenUnit: TokenUnit
   showRechargePrice: boolean
 }) {
@@ -475,6 +484,50 @@ function PriceSection(props: {
         )}
       </section>
     )
+  }
+
+  const isPerSecond =
+    props.model.billing_mode === 'per_second' && Boolean(props.model.billing_expr)
+  if (isPerSecond && props.model.billing_expr) {
+    const tiers = parsePerSecondTiers(props.model.billing_expr)
+    if (tiers.length > 0) {
+      return (
+        <section>
+          <SectionTitle>{t('Base Price')}</SectionTitle>
+          <div className='grid grid-cols-2 gap-2'>
+            {tiers.map((tier) => (
+              <div
+                key={tier.label}
+                className='bg-muted/20 rounded-lg border p-3'
+              >
+                <div className='text-muted-foreground text-xs'>
+                  {tier.label}
+                </div>
+                <div className='text-foreground mt-1 font-mono text-base font-semibold tabular-nums'>
+                  {(() => {
+                    const currencySymbol = (() => {
+                      if (props.quotaDisplayType === 'CNY') return '¥'
+                      if (props.quotaDisplayType === 'CUSTOM') return props.customCurrencySymbol ?? '¤'
+                      return '$'
+                    })()
+                    const exchangeRate = (() => {
+                      if (props.quotaDisplayType === 'CNY') return props.usdExchangeRate
+                      if (props.quotaDisplayType === 'CUSTOM') return props.customCurrencyExchangeRate ?? 1
+                      return 1
+                    })()
+                    const num = parseFloat(tier.pricePerSecond) * exchangeRate * props.priceRate
+                    return `${currencySymbol}${num.toFixed(3)}`
+                  })()}
+                  <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+                    / {t('second')}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )
+    }
   }
 
   if (!isTokenBased) {
@@ -904,6 +957,9 @@ export interface ModelDetailsContentProps {
   autoGroups: string[]
   priceRate: number
   usdExchangeRate: number
+  quotaDisplayType?: string
+  customCurrencySymbol?: string
+  customCurrencyExchangeRate?: number
   tokenUnit: TokenUnit
   showRechargePrice?: boolean
 }
@@ -947,6 +1003,9 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
               model={props.model}
               priceRate={props.priceRate}
               usdExchangeRate={props.usdExchangeRate}
+              quotaDisplayType={props.quotaDisplayType}
+              customCurrencySymbol={props.customCurrencySymbol}
+              customCurrencyExchangeRate={props.customCurrencyExchangeRate}
               tokenUnit={props.tokenUnit}
               showRechargePrice={showRechargePrice}
             />
@@ -1041,6 +1100,11 @@ export function ModelDetails() {
     usdExchangeRate,
   } = usePricingData()
 
+  const currency = useSystemConfigStore((s) => s.config.currency)
+  const quotaDisplayType = currency?.quotaDisplayType ?? 'USD'
+  const customCurrencySymbol = currency?.customCurrencySymbol
+  const customCurrencyExchangeRate = currency?.customCurrencyExchangeRate ?? 1
+
   const tokenUnit: TokenUnit =
     search.tokenUnit === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
 
@@ -1116,6 +1180,9 @@ export function ModelDetails() {
           autoGroups={autoGroups || []}
           priceRate={priceRate ?? 1}
           usdExchangeRate={usdExchangeRate ?? 1}
+          quotaDisplayType={quotaDisplayType}
+          customCurrencySymbol={customCurrencySymbol}
+          customCurrencyExchangeRate={customCurrencyExchangeRate}
           tokenUnit={tokenUnit}
           showRechargePrice={search.rechargePrice ?? false}
           endpointMap={

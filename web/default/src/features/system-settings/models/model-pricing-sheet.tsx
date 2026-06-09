@@ -61,17 +61,20 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  sideDrawerContentClassName,
-  sideDrawerFooterClassName,
-} from '@/components/drawer-layout'
+import { sideDrawerContentClassName, sideDrawerFooterClassName } from '@/components/drawer-layout'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
+import {
+  parsePerSecondExprToTiers,
+  buildPerSecondExprFromTiers,
+} from '@/features/pricing/lib/per-second-price'
 import {
   SettingsControlGroup,
   SettingsSwitchField,
 } from '../components/settings-form-layout'
 import { formatPricingNumber } from './pricing-format'
 import { TieredPricingEditor } from './tiered-pricing-editor'
+import { PerSecondPricingEditor } from './per-second-pricing-editor'
 
 const createModelPricingSchema = (t: (key: string) => string) =>
   z.object({
@@ -90,7 +93,7 @@ type ModelPricingFormValues = z.infer<
   ReturnType<typeof createModelPricingSchema>
 >
 
-type PricingMode = 'per-token' | 'per-request' | 'tiered_expr'
+type PricingMode = 'per-token' | 'per-request' | 'tiered_expr' | 'per_second'
 type LaneKey =
   | 'completion'
   | 'cache'
@@ -111,6 +114,7 @@ export type ModelRatioData = {
   audioCompletionRatio?: string
   billingMode?: PricingMode
   billingExpr?: string
+  perSecondExpr?: string
   requestRuleExpr?: string
 }
 
@@ -276,6 +280,7 @@ function createInitialLaneState(data?: ModelRatioData | null) {
 function getModeLabel(mode: PricingMode) {
   if (mode === 'per-request') return 'Per-request'
   if (mode === 'tiered_expr') return 'Expression'
+  if (mode === 'per_second') return 'Per-second'
   return 'Per-token'
 }
 
@@ -284,6 +289,7 @@ function getModeBadgeVariant(
 ): 'default' | 'secondary' | 'outline' {
   if (mode === 'per-request') return 'secondary'
   if (mode === 'tiered_expr') return 'default'
+  if (mode === 'per_second') return 'default'
   return 'outline'
 }
 
@@ -291,10 +297,12 @@ function buildPreviewRows(
   values: ModelPricingFormValues,
   mode: PricingMode,
   billingExpr: string,
+  perSecondExpr: string,
   requestRuleExpr: string,
   promptPrice: string,
   lanePrices: Record<LaneKey, string>,
   laneEnabled: Record<LaneKey, boolean>,
+  currencySymbol: string,
   t: (key: string) => string
 ): PreviewRow[] {
   if (mode === 'tiered_expr') {
@@ -308,6 +316,24 @@ function buildPreviewRows(
         multiline: true,
       },
     ]
+  }
+
+  if (mode === 'per_second') {
+    const rows = [
+      { key: 'mode', label: 'BillingMode', value: 'per_second' },
+    ]
+    if (perSecondExpr) {
+      rows.push({
+        key: 'expr',
+        label: 'BillingExpr',
+        value:
+          perSecondExpr.length > 60
+            ? perSecondExpr.slice(0, 60) + '...'
+            : perSecondExpr,
+        multiline: true,
+      })
+    }
+    return rows
   }
 
   if (mode === 'per-request') {
@@ -324,14 +350,14 @@ function buildPreviewRows(
     {
       key: 'inputPrice',
       label: t('Input price'),
-      value: promptPrice ? `$${promptPrice}` : t('Empty'),
+      value: promptPrice ? `${currencySymbol}${promptPrice}` : t('Empty'),
     },
     {
       key: 'completion',
       label: t('Completion price'),
       value:
         laneEnabled.completion && lanePrices.completion
-          ? `$${lanePrices.completion}`
+          ? `${currencySymbol}${lanePrices.completion}`
           : t('Empty'),
     },
     {
@@ -339,7 +365,7 @@ function buildPreviewRows(
       label: t('Cache read price'),
       value:
         laneEnabled.cache && lanePrices.cache
-          ? `$${lanePrices.cache}`
+          ? `${currencySymbol}${lanePrices.cache}`
           : t('Empty'),
     },
     {
@@ -347,7 +373,7 @@ function buildPreviewRows(
       label: t('Cache write price'),
       value:
         laneEnabled.createCache && lanePrices.createCache
-          ? `$${lanePrices.createCache}`
+          ? `${currencySymbol}${lanePrices.createCache}`
           : t('Empty'),
     },
     {
@@ -355,7 +381,7 @@ function buildPreviewRows(
       label: t('Image input price'),
       value:
         laneEnabled.image && lanePrices.image
-          ? `$${lanePrices.image}`
+          ? `${currencySymbol}${lanePrices.image}`
           : t('Empty'),
     },
     {
@@ -363,7 +389,7 @@ function buildPreviewRows(
       label: t('Audio input price'),
       value:
         laneEnabled.audioInput && lanePrices.audioInput
-          ? `$${lanePrices.audioInput}`
+          ? `${currencySymbol}${lanePrices.audioInput}`
           : t('Empty'),
     },
     {
@@ -371,7 +397,7 @@ function buildPreviewRows(
       label: t('Audio output price'),
       value:
         laneEnabled.audioOutput && lanePrices.audioOutput
-          ? `$${lanePrices.audioOutput}`
+          ? `${currencySymbol}${lanePrices.audioOutput}`
           : t('Empty'),
     },
   ]
@@ -388,6 +414,12 @@ export function ModelPricingSheet({
   const { t } = useTranslation()
   const title = editData ? t('Edit model pricing') : t('Add model pricing')
   const description = editData?.name || t('New model')
+  const currency = useSystemConfigStore((s) => s.config.currency)
+  const currencySymbol = (() => {
+    if (currency?.quotaDisplayType === 'CNY') return '¥'
+    if (currency?.quotaDisplayType === 'CUSTOM') return currency.customCurrencySymbol ?? '¤'
+    return '$'
+  })()
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -422,6 +454,12 @@ export function ModelPricingEditorPanel({
   className,
 }: ModelPricingEditorPanelProps) {
   const { t } = useTranslation()
+  const currency = useSystemConfigStore((s) => s.config.currency)
+  const currencySymbol = (() => {
+    if (currency?.quotaDisplayType === 'CNY') return '¥'
+    if (currency?.quotaDisplayType === 'CUSTOM') return currency.customCurrencySymbol ?? '¤'
+    return '$'
+  })()
   const [pricingMode, setPricingMode] = useState<PricingMode>('per-token')
   const [promptPrice, setPromptPrice] = useState('')
   const [lanePrices, setLanePrices] = useState<Record<LaneKey, string>>({
@@ -431,6 +469,12 @@ export function ModelPricingEditorPanel({
     ...EMPTY_LANE_ENABLED,
   })
   const [billingExpr, setBillingExpr] = useState('')
+  const [perSecondTiers, setPerSecondTiers] = useState<Array<{
+    label: string
+    resolution: string | null
+    maxWidth: number | null
+    pricePerSecond: string
+  }>>([{ label: 'base', resolution: null, maxWidth: null, pricePerSecond: '' }])
   const [requestRuleExpr, setRequestRuleExpr] = useState('')
   const [previewOpen, setPreviewOpen] = useState(true)
   const isEditMode = !!editData
@@ -468,11 +512,23 @@ export function ModelPricingEditorPanel({
       setPricingMode(
         editData.billingMode === 'tiered_expr'
           ? 'tiered_expr'
-          : editData.price
-            ? 'per-request'
-            : 'per-token'
+          : editData.billingMode === 'per_second'
+            ? 'per_second'
+            : editData.price
+              ? 'per-request'
+              : 'per-token'
       )
       setBillingExpr(editData.billingExpr || '')
+      setPerSecondTiers(
+        editData.billingMode === 'per_second' && editData.perSecondExpr
+          ? parsePerSecondExprToTiers(editData.perSecondExpr).length > 0
+            ? parsePerSecondExprToTiers(editData.perSecondExpr).map(t => ({
+                ...t,
+                pricePerSecond: t.pricePerSecond || '',
+              }))
+            : [{ label: 'base', resolution: null, maxWidth: null, pricePerSecond: '0.05' }]
+          : [{ label: 'base', resolution: null, maxWidth: null, pricePerSecond: '' }]
+      )
       setRequestRuleExpr(editData.requestRuleExpr || '')
     } else {
       form.reset({
@@ -488,6 +544,7 @@ export function ModelPricingEditorPanel({
       })
       setPricingMode('per-token')
       setBillingExpr('')
+      setPerSecondTiers([{ label: 'base', resolution: null, maxWidth: null, pricePerSecond: '' }])
       setRequestRuleExpr('')
     }
 
@@ -615,23 +672,38 @@ export function ModelPricingEditorPanel({
     if (nextMode === 'tiered_expr' && !billingExpr) {
       setBillingExpr('tier("base", p * 0 + c * 0)')
     }
+    if (nextMode === 'per_second') {
+      setPerSecondTiers(prev =>
+        prev.length === 0 || (!prev[0]?.pricePerSecond && prev.length === 1)
+          ? [{ label: 'base', resolution: null, maxWidth: null, pricePerSecond: '0.05' }]
+          : prev
+      )
+    }
   }
 
   const watchedValues = form.watch()
+  const perSecondExpr = useMemo(
+    () => buildPerSecondExprFromTiers(perSecondTiers),
+    [perSecondTiers]
+  )
   const previewRows = useMemo(
     () =>
       buildPreviewRows(
         watchedValues,
         pricingMode,
         billingExpr,
+        perSecondExpr,
         requestRuleExpr,
         promptPrice,
         lanePrices,
         laneEnabled,
+        currencySymbol,
         t
       ),
     [
       billingExpr,
+      perSecondExpr,
+      perSecondTiers,
       laneEnabled,
       lanePrices,
       pricingMode,
@@ -730,6 +802,13 @@ export function ModelPricingEditorPanel({
       data.requestRuleExpr = requestRuleExpr
     }
 
+    if (pricingMode === 'per_second') {
+      const expr = buildPerSecondExprFromTiers(perSecondTiers)
+      if (expr) {
+        data.perSecondExpr = expr
+      }
+    }
+
     onSave(data)
     form.reset()
     onCancel?.()
@@ -803,10 +882,13 @@ export function ModelPricingEditorPanel({
               />
 
               <Tabs value={pricingMode} onValueChange={handleModeChange}>
-                <TabsList className='grid w-full grid-cols-3'>
+                <TabsList className='grid w-full grid-cols-4'>
                   <TabsTrigger value='per-token'>{t('Per-token')}</TabsTrigger>
                   <TabsTrigger value='per-request'>
                     {t('Per-request')}
+                  </TabsTrigger>
+                  <TabsTrigger value='per_second'>
+                    {t('Pay per second')}
                   </TabsTrigger>
                   <TabsTrigger value='tiered_expr'>
                     {t('Expression')}
@@ -821,6 +903,7 @@ export function ModelPricingEditorPanel({
                         value={promptPrice}
                         placeholder='3'
                         onChange={handlePromptPriceChange}
+                        currencySymbol={currencySymbol}
                       />
                       <FieldDescription>
                         {t('USD price per 1M input tokens.')}
@@ -848,6 +931,7 @@ export function ModelPricingEditorPanel({
                             onChange={(value) =>
                               handleLanePriceChange(lane.key, value)
                             }
+                            currencySymbol={currencySymbol}
                           />
                         )
                       })}
@@ -867,7 +951,7 @@ export function ModelPricingEditorPanel({
                         <FormLabel>{t('Fixed price')}</FormLabel>
                         <FormControl>
                           <InputGroup>
-                            <InputGroupAddon>$</InputGroupAddon>
+                            <InputGroupAddon>{currencySymbol}</InputGroupAddon>
                             <InputGroupInput
                               inputMode='decimal'
                               placeholder='0.01'
@@ -905,6 +989,16 @@ export function ModelPricingEditorPanel({
                     requestRuleExpr={requestRuleExpr}
                     onBillingExprChange={setBillingExpr}
                     onRequestRuleExprChange={setRequestRuleExpr}
+                  />
+                </TabsContent>
+
+                <TabsContent
+                  value='per_second'
+                  className='flex flex-col gap-5'
+                >
+                  <PerSecondPricingEditor
+                    tiers={perSecondTiers}
+                    onTiersChange={setPerSecondTiers}
                   />
                 </TabsContent>
               </Tabs>
@@ -987,10 +1081,12 @@ function PriceInput(props: {
   placeholder?: string
   disabled?: boolean
   onChange: (value: string) => void
+  currencySymbol?: string
 }) {
+  const sym = props.currencySymbol ?? '$'
   return (
     <InputGroup>
-      <InputGroupAddon>$</InputGroupAddon>
+      <InputGroupAddon>{sym}</InputGroupAddon>
       <InputGroupInput
         inputMode='decimal'
         value={props.value}
@@ -998,7 +1094,7 @@ function PriceInput(props: {
         disabled={props.disabled}
         onChange={(event) => props.onChange(event.target.value)}
       />
-      <InputGroupAddon align='inline-end'>$/1M</InputGroupAddon>
+      <InputGroupAddon align='inline-end'>{sym}/1M</InputGroupAddon>
     </InputGroup>
   )
 }
@@ -1012,6 +1108,7 @@ function PriceLane(props: {
   disabled?: boolean
   onEnabledChange: (checked: boolean) => void
   onChange: (value: string) => void
+  currencySymbol?: string
 }) {
   const { t } = useTranslation()
   const effectiveDisabled = props.disabled || !props.enabled
@@ -1034,6 +1131,7 @@ function PriceLane(props: {
         placeholder={props.placeholder}
         disabled={effectiveDisabled}
         onChange={props.onChange}
+        currencySymbol={props.currencySymbol}
       />
       <p className='text-muted-foreground text-xs'>
         {props.enabled

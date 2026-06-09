@@ -314,6 +314,11 @@ func updatePricing() {
 			pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
 			pricing.QuotaType = 0
 		}
+		if billingMode := billing_setting.GetBillingMode(model); billingMode == billing_setting.BillingModePerSecond {
+			if expr, ok := billing_setting.GetPerSecondExpr(model); ok && strings.TrimSpace(expr) != "" {
+				pricing.QuotaType = 2
+			}
+		}
 		if cacheRatio, ok := ratio_setting.GetCacheRatio(model); ok {
 			pricing.CacheRatio = &cacheRatio
 		}
@@ -333,6 +338,12 @@ func updatePricing() {
 		}
 		if billingMode := billing_setting.GetBillingMode(model); billingMode == "tiered_expr" {
 			if expr, ok := billing_setting.GetBillingExpr(model); ok && strings.TrimSpace(expr) != "" {
+				pricing.BillingMode = billingMode
+				pricing.BillingExpr = expr
+			}
+		}
+		if billingMode := billing_setting.GetBillingMode(model); billingMode == billing_setting.BillingModePerSecond {
+			if expr, ok := billing_setting.GetPerSecondExpr(model); ok && strings.TrimSpace(expr) != "" {
 				pricing.BillingMode = billingMode
 				pricing.BillingExpr = expr
 			}

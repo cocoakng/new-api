@@ -78,10 +78,14 @@ export function filterByQuotaType(
   quotaType: string
 ): PricingModel[] {
   if (quotaType === QUOTA_TYPES.ALL) return models
-  const targetType =
-    quotaType === QUOTA_TYPES.TOKEN
-      ? QUOTA_TYPE_VALUES.TOKEN
-      : QUOTA_TYPE_VALUES.REQUEST
+  let targetType: number
+  if (quotaType === QUOTA_TYPES.TOKEN) {
+    targetType = QUOTA_TYPE_VALUES.TOKEN
+  } else if (quotaType === QUOTA_TYPES.PER_SECOND) {
+    targetType = QUOTA_TYPE_VALUES.PER_SECOND
+  } else {
+    targetType = QUOTA_TYPE_VALUES.REQUEST
+  }
   return models.filter((m) => m.quota_type === targetType)
 }
 

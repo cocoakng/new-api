@@ -37,6 +37,7 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 | `cc1h` | 缓存创建 token 数 — 1小时 TTL（Claude 专用） |
 | `img` | 图片输入 token 数 |
 | `ai` | 音频输入 token 数 |
+| `duration` | 视频时长（秒）。不参与 p/c 的自动排除，仅用于视频按秒定价 |
 
 **输出侧变量：**
 
@@ -106,6 +107,12 @@ tier("base", p * 2 + c * 8 + img * 2.5)
 
 # Multimodal with audio
 tier("base", p * 0.43 + c * 3.06 + img * 0.78 + ai * 3.81 + ao * 15.11)
+
+# Per-second video billing (v2 — direct price multiplier)
+v2:tier("base", duration * 0.05)
+
+# Per-second video with resolution tiers (v2)
+v2:param("width") <= 720 ? tier("sd", duration * 0.02) : tier("hd", duration * 0.05)
 ```
 
 ### Request Rules (appended after `|||`)
@@ -214,11 +221,19 @@ This ensures that heavy cache usage doesn't cause the tier condition to incorrec
 
 ### Quota Conversion
 
-Expression coefficients are $/1M tokens. Conversion to internal quota:
+Expression coefficients are $/1M tokens for v1, direct price multipliers for v2. Conversion to internal quota:
 
+**v1** (token-based pricing):
 ```
 quota = exprOutput / 1,000,000 * QuotaPerUnit * groupRatio
 ```
+
+**v2** (direct pricing, e.g., per-second video billing):
+```
+quota = exprOutput * QuotaPerUnit * groupRatio
+```
+
+v2 is designed for non-token billing scenarios like video generation per-second pricing, where expression coefficients are real per-unit prices (e.g., `duration * 0.05` means $0.05 per second).
 
 This matches the per-call billing pattern: `quota = modelPrice * QuotaPerUnit * groupRatio`.
 

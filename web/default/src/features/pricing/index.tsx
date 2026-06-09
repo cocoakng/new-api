@@ -20,6 +20,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 import {
   LoadingSkeleton,
   EmptyState,
@@ -51,6 +52,11 @@ export function Pricing() {
     priceRate,
     usdExchangeRate,
   } = usePricingData()
+
+  const currency = useSystemConfigStore((s) => s.config.currency)
+  const quotaDisplayType = currency?.quotaDisplayType ?? 'USD'
+  const customCurrencySymbol = currency?.customCurrencySymbol
+  const customCurrencyExchangeRate = currency?.customCurrencyExchangeRate ?? 1
 
   const {
     searchInput,
@@ -126,6 +132,9 @@ export function Pricing() {
           onModelClick={handleModelClick}
           priceRate={priceRate}
           usdExchangeRate={usdExchangeRate}
+          quotaDisplayType={quotaDisplayType}
+          customCurrencySymbol={customCurrencySymbol}
+          customCurrencyExchangeRate={customCurrencyExchangeRate}
           tokenUnit={tokenUnit}
           showRechargePrice={showRechargePrice}
         />
@@ -137,6 +146,9 @@ export function Pricing() {
         models={filteredModels}
         priceRate={priceRate}
         usdExchangeRate={usdExchangeRate}
+        quotaDisplayType={quotaDisplayType}
+        customCurrencySymbol={customCurrencySymbol}
+        customCurrencyExchangeRate={customCurrencyExchangeRate}
         tokenUnit={tokenUnit}
         showRechargePrice={showRechargePrice}
         onModelClick={handleModelClick}
@@ -277,6 +289,9 @@ export function Pricing() {
               autoGroups={autoGroups || []}
               priceRate={priceRate ?? 1}
               usdExchangeRate={usdExchangeRate ?? 1}
+              quotaDisplayType={quotaDisplayType}
+              customCurrencySymbol={customCurrencySymbol}
+              customCurrencyExchangeRate={customCurrencyExchangeRate}
               tokenUnit={tokenUnit}
               showRechargePrice={showRechargePrice}
             />

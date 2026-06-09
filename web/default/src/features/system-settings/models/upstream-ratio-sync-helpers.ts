@@ -49,6 +49,7 @@ export const SYNC_FIELD_ORDER: RatioType[] = [
   'model_price',
   'billing_mode',
   'billing_expr',
+  'per_second_expr',
 ]
 
 export const NUMERIC_SYNC_FIELDS = new Set<string>([

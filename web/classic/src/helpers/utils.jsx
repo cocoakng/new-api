@@ -1003,6 +1003,54 @@ export const formatPriceInfo = (priceData, t, quotaDisplayType = 'USD') => {
   );
 };
 
+// 格式化按秒计费价格摘要（用于卡片视图）
+export const formatPerSecondPriceSummary = (billingExpr, t, groupRatio = 1) => {
+  if (!billingExpr) return <span style={{ color: 'var(--semi-color-text-1)' }}>{t('按秒计费')}</span>;
+
+  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
+  let symbol = '$';
+  let rate = 1;
+  try {
+    const s = JSON.parse(localStorage.getItem('status') || '{}');
+    if (quotaDisplayType === 'CNY') {
+      symbol = '¥';
+      rate = s?.usd_exchange_rate || 7;
+    } else if (quotaDisplayType === 'CUSTOM') {
+      symbol = s?.custom_currency_symbol || '¤';
+      rate = s?.custom_currency_exchange_rate || 1;
+    }
+  } catch (e) {}
+
+  // Parse per_second expression: v2:tier("label", duration * price)
+  const body = billingExpr.replace(/^v\d+:/, '');
+  const tierRegex = /tier\s*\(\s*"([^"]+)"\s*,\s*(.+?)\s*\)/g;
+  const tiers = [];
+  let match;
+  while ((match = tierRegex.exec(body)) !== null) {
+    const label = match[1];
+    const costExpr = match[2].trim();
+    let price = '';
+    const m = costExpr.match(/duration\s*\*\s*([\d.]+)/) || costExpr.match(/([\d.]+)\s*\*\s*duration/);
+    if (m) price = m[1];
+    tiers.push({ label, price });
+  }
+
+  if (tiers.length === 0) return <span style={{ color: 'var(--semi-color-text-1)' }}>{t('按秒计费')}</span>;
+
+  return (
+    <>
+      {tiers.map((tier, idx) => {
+        const num = parseFloat(tier.price) * groupRatio;
+        return (
+          <span key={idx} style={{ color: 'var(--semi-color-text-1)' }}>
+            {tier.label} {symbol}{(num * rate).toFixed(3)}/{t('秒')}
+          </span>
+        );
+      })}
+    </>
+  );
+};
+
 // -------------------------------
 // CardPro 分页配置函数
 // 用于创建 CardPro 的 paginationArea 配置

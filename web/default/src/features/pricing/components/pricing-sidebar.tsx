@@ -206,6 +206,11 @@ export function PricingSidebar(props: PricingSidebarProps) {
       label: quotaTypeLabels[QUOTA_TYPES.REQUEST],
       count: countBy(props.models, (model) => model.quota_type === 1),
     },
+    {
+      value: QUOTA_TYPES.PER_SECOND,
+      label: quotaTypeLabels[QUOTA_TYPES.PER_SECOND],
+      count: countBy(props.models, (model) => model.quota_type === 2),
+    },
   ]
 
   const tagOptions: FilterOption[] = [

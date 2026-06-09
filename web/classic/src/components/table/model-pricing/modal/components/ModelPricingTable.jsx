@@ -20,9 +20,47 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Avatar, Typography, Table, Tag } from '@douyinfe/semi-ui';
 import { IconCoinMoneyStroked } from '@douyinfe/semi-icons';
-import { calculateModelPrice, getModelPriceItems } from '../../../../../helpers';
+import { calculateModelPrice, getModelPriceItems, getCurrencyConfig } from '../../../../../helpers';
 
 const { Text } = Typography;
+
+// Parse v2 per_second expression for display
+const parsePerSecondTiers = (expr) => {
+  if (!expr || !expr.startsWith('v2:')) return [];
+  const body = expr.slice(3).trim();
+  const tiers = [];
+  const tierRegex = /tier\s*\(\s*"([^"]+)"\s*,\s*(.+?)\s*\)/g;
+  let match;
+  while ((match = tierRegex.exec(body)) !== null) {
+    const label = match[1];
+    const costExpr = match[2].trim();
+    let pricePerSecond = '';
+    const durMult = costExpr.match(/duration\s*\*\s*([\d.]+)/);
+    const multDur = costExpr.match(/([\d.]+)\s*\*\s*duration/);
+    if (durMult) pricePerSecond = durMult[1];
+    else if (multDur) pricePerSecond = multDur[1];
+    tiers.push({ label, pricePerSecond });
+  }
+  return tiers;
+};
+
+// Render per-second price summary items
+const renderPerSecondPriceItems = (billingExpr, groupRatio, t) => {
+  const { symbol, rate } = getCurrencyConfig();
+  const tiers = parsePerSecondTiers(billingExpr);
+  if (!tiers || tiers.length === 0) return null;
+
+  return tiers.map((tier) => {
+    const num = parseFloat(tier.pricePerSecond);
+    if (!Number.isFinite(num)) return null;
+    const finalPrice = groupRatio ? num * groupRatio : num;
+    return {
+      key: tier.label,
+      label: tier.label,
+      value: `${symbol}${(finalPrice * rate).toFixed(3)}/${t('秒')}`,
+    };
+  }).filter(Boolean);
+};
 
 const ModelPricingTable = ({
   modelData,
@@ -66,6 +104,11 @@ const ModelPricingTable = ({
       const groupRatioValue =
         groupRatio && groupRatio[group] ? groupRatio[group] : 1;
 
+      const isPerSecond = modelData?.billing_mode === 'per_second';
+      const perSecondPriceItems = isPerSecond
+        ? renderPerSecondPriceItems(modelData?.billing_expr, groupRatioValue, t)
+        : null;
+
       return {
         key: group,
         group: group,
@@ -73,12 +116,15 @@ const ModelPricingTable = ({
         billingType:
           modelData?.billing_mode === 'tiered_expr'
             ? t('动态计费')
-            : modelData?.quota_type === 0
-              ? t('按量计费')
-              : modelData?.quota_type === 1
-                ? t('按次计费')
-                : '-',
-        priceItems: getModelPriceItems(priceData, t, siteDisplayType),
+            : modelData?.billing_mode === 'per_second'
+              ? t('按秒计费')
+              : modelData?.quota_type === 0
+                ? t('按量计费')
+                : modelData?.quota_type === 1
+                  ? t('按次计费')
+                  : '-',
+        priceItems: perSecondPriceItems || getModelPriceItems(priceData, t, siteDisplayType),
+        isPerSecond,
       };
     });
 
@@ -118,6 +164,7 @@ const ModelPricingTable = ({
         let color = 'white';
         if (text === t('按量计费')) color = 'violet';
         else if (text === t('按次计费')) color = 'teal';
+        else if (text === t('按秒计费')) color = 'amber';
         else if (text === t('动态计费')) color = 'amber';
         return (
           <Tag color={color} size='small' shape='circle'>
@@ -130,7 +177,20 @@ const ModelPricingTable = ({
     columns.push({
       title: siteDisplayType === 'TOKENS' ? t('计费摘要') : t('价格摘要'),
       dataIndex: 'priceItems',
-      render: (items) => {
+      render: (items, record) => {
+        if (record?.isPerSecond && items && items.length > 0) {
+          return (
+            <div className='space-y-1'>
+              {items.map((item) => (
+                <div key={item.key}>
+                  <div className='font-semibold text-orange-600'>
+                    {item.label} {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        }
         if (items.length === 1 && items[0].isDynamic) {
           return (
             <Text type='tertiary' size='small'>

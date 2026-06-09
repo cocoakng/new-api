@@ -44,6 +44,9 @@ export interface PricingTableProps {
   isLoading?: boolean
   priceRate?: number
   usdExchangeRate?: number
+  quotaDisplayType?: string
+  customCurrencySymbol?: string
+  customCurrencyExchangeRate?: number
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   onModelClick?: (modelName: string) => void
@@ -56,6 +59,9 @@ export function PricingTable(props: PricingTableProps) {
     isLoading = false,
     priceRate = 1,
     usdExchangeRate = 1,
+    quotaDisplayType = 'USD',
+    customCurrencySymbol,
+    customCurrencyExchangeRate,
     tokenUnit = DEFAULT_TOKEN_UNIT,
     showRechargePrice = false,
     onModelClick,
@@ -70,6 +76,9 @@ export function PricingTable(props: PricingTableProps) {
     tokenUnit,
     priceRate,
     usdExchangeRate,
+    quotaDisplayType,
+    customCurrencySymbol,
+    customCurrencyExchangeRate,
     showRechargePrice,
   })
 

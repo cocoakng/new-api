@@ -240,6 +240,9 @@ type Usage struct {
 
 	// OpenRouter Params
 	Cost any `json:"cost,omitempty"`
+
+	// Video duration in seconds (for tiered per-second billing)
+	Duration float64 `json:"duration,omitempty"`
 }
 
 type OpenAIVideoResponse struct {

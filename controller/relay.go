@@ -22,6 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -590,7 +591,12 @@ func RelayTask(c *gin.Context) {
 			ModelRatio:      relayInfo.PriceData.ModelRatio,
 			OtherRatios:     relayInfo.PriceData.OtherRatios,
 			OriginModelName: relayInfo.OriginModelName,
-			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
+			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice || relayInfo.TieredBillingSnapshot.BillingMode == billing_setting.BillingModePerSecond,
+		}
+		// Store tiered expression info for settlement at task completion
+		if relayInfo.TieredBillingSnapshot != nil {
+			task.PrivateData.BillingContext.ExprString = relayInfo.TieredBillingSnapshot.ExprString
+			task.PrivateData.BillingContext.ExprHash = relayInfo.TieredBillingSnapshot.ExprHash
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 
@@ -536,13 +538,38 @@ func truncateBase64(s string) string {
 }
 
 // settleTaskBillingOnComplete 任务完成时的统一计费调整。
-// 优先级：1. adaptor.AdjustBillingOnComplete 返回正数 → 使用 adaptor 计算的额度
+// 优先级：0. tiered_expr 按表达式重算（含 duration）
+//
+//  1. adaptor.AdjustBillingOnComplete 返回正数 → 使用 adaptor 计算的额度
 //
 //  2. taskResult.TotalTokens > 0 → 按 token 重算
+//
+//  3. 都不满足 → 保持预扣额
 //  3. 都不满足 → 保持预扣额度不变
 func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) {
-	// 0. 按次计费的任务不做差额结算
-	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
+	// 0a. tiered_expr billing: re-evaluate expression with actual duration from task data
+	bc := task.PrivateData.BillingContext
+	if bc != nil && bc.ExprString != "" && bc.ExprHash != "" {
+		// Extract actual duration from task data
+		actualDuration := extractDurationFromTaskData(task.Data)
+		params := billingexpr.TokenParams{
+			Duration: actualDuration,
+		}
+		tr, err := billingexpr.ComputeTieredQuotaWithRequest(
+			buildTaskBillingSnapshot(bc),
+			params,
+			billingexpr.RequestInput{Body: task.Data},
+		)
+		if err != nil {
+			logger.LogError(ctx, fmt.Sprintf("任务 %s tiered_expr 结算失败: %s，保持预扣额度", task.TaskID, err.Error()))
+		} else {
+			RecalculateTaskQuota(ctx, task, tr.ActualQuotaAfterGroup, "tiered_expr结算")
+			return
+		}
+	}
+
+	// 0b. 按次计费的任务不做差额结算
+	if bc != nil && bc.PerCallBilling {
 		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 按次计费，跳过差额结算", task.TaskID))
 		return
 	}
@@ -557,4 +584,40 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 		return
 	}
 	// 3. 无调整，保持预扣额度
+}
+
+// extractDurationFromTaskData parses the duration from task.Data JSON.
+func extractDurationFromTaskData(data []byte) float64 {
+	if len(data) == 0 {
+		return 0
+	}
+	var payload map[string]interface{}
+	_ = common.Unmarshal(data, &payload)
+	if d, ok := payload["duration"].(float64); ok {
+		return d
+	}
+	// Try as string (some upstreams return duration as string)
+	if s, ok := payload["duration"].(string); ok {
+		if val, err := strconv.ParseFloat(s, 64); err == nil {
+			return val
+		}
+	}
+	return 0
+}
+
+// buildTaskBillingSnapshot reconstructs a BillingSnapshot from BillingContext.
+func buildTaskBillingSnapshot(bc *model.TaskBillingContext) *billingexpr.BillingSnapshot {
+	snap := &billingexpr.BillingSnapshot{
+		BillingMode:  "tiered_expr",
+		ModelName:    bc.OriginModelName,
+		ExprString:   bc.ExprString,
+		ExprHash:     bc.ExprHash,
+		GroupRatio:   bc.GroupRatio,
+		QuotaPerUnit: common.QuotaPerUnit,
+	}
+	if bc.ExprString != "" {
+		v, _ := billingexpr.ParseExprVersion(bc.ExprString)
+		snap.ExprVersion = v
+	}
+	return snap
 }

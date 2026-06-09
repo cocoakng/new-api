@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 func modelPriceNotConfiguredError(modelName string, userId int) error {
@@ -72,6 +73,11 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	// Check if this model uses tiered_expr billing
 	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
 		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo)
+	}
+
+	// Check if this model uses per_second billing
+	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModePerSecond {
+		return modelPriceHelperSecond(c, info, promptTokens, meta, groupRatioInfo)
 	}
 
 	var preConsumedQuota int
@@ -167,6 +173,16 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types.PriceData, error) {
 	groupRatioInfo := HandleGroupRatio(c, info)
 
+	// Check if this model uses tiered_expr billing (e.g., per-second video pricing)
+	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
+		return modelPriceHelperPerCallTiered(c, info, groupRatioInfo)
+	}
+
+	// Check if this model uses per_second billing
+	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModePerSecond {
+		return modelPriceHelperPerCallSecond(c, info, groupRatioInfo)
+	}
+
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
 	usePrice := success
 	var modelRatio float64
@@ -221,6 +237,78 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 		Quota:          quota,
 		GroupRatioInfo: groupRatioInfo,
 	}
+	return priceData, nil
+}
+
+// modelPriceHelperPerCallTiered handles tiered_expr billing for per-call models
+// (e.g., video generation with per-second pricing). It extracts the request body
+// duration, runs the billing expression, and freezes a BillingSnapshot.
+func modelPriceHelperPerCallTiered(c *gin.Context, info *relaycommon.RelayInfo, groupRatioInfo types.GroupRatioInfo) (types.PriceData, error) {
+	exprStr, ok := billing_setting.GetBillingExpr(info.OriginModelName)
+	if !ok {
+		return types.PriceData{}, fmt.Errorf("model %s is configured as tiered_expr but has no billing expression", info.OriginModelName)
+	}
+
+	requestInput, err := ResolveIncomingBillingExprRequestInput(c, info)
+	if err != nil {
+		return types.PriceData{}, err
+	}
+
+	rawCost, trace, err := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{
+		Duration: 0, // actual duration will be read via param("duration") from request body
+	}, requestInput)
+	if err != nil {
+		return types.PriceData{}, fmt.Errorf("model %s tiered expr run failed: %w", info.OriginModelName, err)
+	}
+
+	// v2 expressions use direct price multipliers (no /1M division)
+	// v1 expressions use $/1M tokens convention
+	exprVersion := billingexpr.ExprVersion(exprStr)
+	var quotaBeforeGroup float64
+	switch exprVersion {
+	case 2:
+		quotaBeforeGroup = rawCost * common.QuotaPerUnit
+	default:
+		quotaBeforeGroup = rawCost / 1_000_000 * common.QuotaPerUnit
+	}
+	preConsumedQuota := billingexpr.QuotaRound(quotaBeforeGroup * groupRatioInfo.GroupRatio)
+
+	freeModel := false
+	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+		if groupRatioInfo.GroupRatio == 0 {
+			preConsumedQuota = 0
+			freeModel = true
+		}
+	}
+
+	exprHash := billingexpr.ExprHashString(exprStr)
+	snapshot := &billingexpr.BillingSnapshot{
+		BillingMode:               billing_setting.BillingModeTieredExpr,
+		ModelName:                 info.OriginModelName,
+		ExprString:                exprStr,
+		ExprHash:                  exprHash,
+		GroupRatio:                groupRatioInfo.GroupRatio,
+		EstimatedPromptTokens:     0,
+		EstimatedCompletionTokens: 0,
+		EstimatedQuotaBeforeGroup: quotaBeforeGroup,
+		EstimatedQuotaAfterGroup:  preConsumedQuota,
+		EstimatedTier:             trace.MatchedTier,
+		QuotaPerUnit:              common.QuotaPerUnit,
+		ExprVersion:               exprVersion,
+	}
+	info.TieredBillingSnapshot = snapshot
+	info.BillingRequestInput = &requestInput
+
+	priceData := types.PriceData{
+		FreeModel:         freeModel,
+		GroupRatioInfo:    groupRatioInfo,
+		Quota:             preConsumedQuota,
+		QuotaToPreConsume: preConsumedQuota,
+	}
+
+	logger.LogDebug(c, "model_price_helper_per_call_tiered result: model=%s preConsume=%d quotaBeforeGroup=%.2f groupRatio=%.2f tier=%s", info.OriginModelName, preConsumedQuota, quotaBeforeGroup, groupRatioInfo.GroupRatio, trace.MatchedTier)
+
+	info.PriceData = priceData
 	return priceData, nil
 }
 
@@ -300,6 +388,158 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 	}
 
 	logger.LogDebug(c, "model_price_helper_tiered result: model=%s preConsume=%d quotaBeforeGroup=%.2f groupRatio=%.2f tier=%s", info.OriginModelName, preConsumedQuota, quotaBeforeGroup, groupRatioInfo.GroupRatio, trace.MatchedTier)
+
+	info.PriceData = priceData
+	return priceData, nil
+}
+
+// modelPriceHelperSecond handles per_second billing for synchronous requests.
+// It generates an internal v2 expression from the configured per-second price
+// and resolution tiers, then evaluates it with TokenParams{Duration}.
+func modelPriceHelperSecond(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta, groupRatioInfo types.GroupRatioInfo) (types.PriceData, error) {
+	exprStr, ok := billing_setting.GetPerSecondExpr(info.OriginModelName)
+	if !ok || strings.TrimSpace(exprStr) == "" {
+		return types.PriceData{}, fmt.Errorf("model %s is configured as per_second but has no pricing expression", info.OriginModelName)
+	}
+
+	requestInput, err := ResolveIncomingBillingExprRequestInput(c, info)
+	if err != nil {
+		return types.PriceData{}, err
+	}
+
+	// Extract duration from request body
+	var duration float64
+	if len(requestInput.Body) > 0 {
+		if r := gjson.GetBytes(requestInput.Body, "duration"); r.Exists() {
+			duration = r.Float()
+		}
+	}
+
+	rawCost, trace, err := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{
+		Duration: duration,
+	}, requestInput)
+	if err != nil {
+		return types.PriceData{}, fmt.Errorf("model %s per_second expr run failed: %w", info.OriginModelName, err)
+	}
+
+	// v2 expressions use direct price multipliers (no /1M division)
+	exprVersion := billingexpr.ExprVersion(exprStr)
+	var quotaBeforeGroup float64
+	switch exprVersion {
+	case 2:
+		quotaBeforeGroup = rawCost * common.QuotaPerUnit
+	default:
+		quotaBeforeGroup = rawCost / 1_000_000 * common.QuotaPerUnit
+	}
+	preConsumedQuota := billingexpr.QuotaRound(quotaBeforeGroup * groupRatioInfo.GroupRatio)
+
+	freeModel := false
+	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+		if groupRatioInfo.GroupRatio == 0 {
+			preConsumedQuota = 0
+			freeModel = true
+		}
+	}
+
+	exprHash := billingexpr.ExprHashString(exprStr)
+	snapshot := &billingexpr.BillingSnapshot{
+		BillingMode:               billing_setting.BillingModePerSecond,
+		ModelName:                 info.OriginModelName,
+		ExprString:                exprStr,
+		ExprHash:                  exprHash,
+		GroupRatio:                groupRatioInfo.GroupRatio,
+		EstimatedQuotaBeforeGroup: quotaBeforeGroup,
+		EstimatedQuotaAfterGroup:  preConsumedQuota,
+		EstimatedTier:             trace.MatchedTier,
+		QuotaPerUnit:              common.QuotaPerUnit,
+		ExprVersion:               exprVersion,
+	}
+	info.TieredBillingSnapshot = snapshot
+	info.BillingRequestInput = &requestInput
+
+	priceData := types.PriceData{
+		FreeModel:         freeModel,
+		GroupRatioInfo:    groupRatioInfo,
+		QuotaToPreConsume: preConsumedQuota,
+	}
+
+	logger.LogDebug(c, "model_price_helper_second result: model=%s preConsume=%d quotaBeforeGroup=%.2f groupRatio=%.2f duration=%.0f tier=%s", info.OriginModelName, preConsumedQuota, quotaBeforeGroup, groupRatioInfo.GroupRatio, duration, trace.MatchedTier)
+
+	info.PriceData = priceData
+	return priceData, nil
+}
+
+// modelPriceHelperPerCallSecond handles per_second billing for per-call models
+// (e.g., video generation). It extracts the request body duration, runs the
+// billing expression, and freezes a BillingSnapshot with PerCallBilling=true.
+func modelPriceHelperPerCallSecond(c *gin.Context, info *relaycommon.RelayInfo, groupRatioInfo types.GroupRatioInfo) (types.PriceData, error) {
+	exprStr, ok := billing_setting.GetPerSecondExpr(info.OriginModelName)
+	if !ok || strings.TrimSpace(exprStr) == "" {
+		return types.PriceData{}, fmt.Errorf("model %s is configured as per_second but has no pricing expression", info.OriginModelName)
+	}
+
+	requestInput, err := ResolveIncomingBillingExprRequestInput(c, info)
+	if err != nil {
+		return types.PriceData{}, err
+	}
+
+	// Extract duration from request body
+	var duration float64
+	if len(requestInput.Body) > 0 {
+		if r := gjson.GetBytes(requestInput.Body, "duration"); r.Exists() {
+			duration = r.Float()
+		}
+	}
+
+	rawCost, trace, err := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{
+		Duration: duration,
+	}, requestInput)
+	if err != nil {
+		return types.PriceData{}, fmt.Errorf("model %s per_second expr run failed: %w", info.OriginModelName, err)
+	}
+
+	exprVersion := billingexpr.ExprVersion(exprStr)
+	var quotaBeforeGroup float64
+	switch exprVersion {
+	case 2:
+		quotaBeforeGroup = rawCost * common.QuotaPerUnit
+	default:
+		quotaBeforeGroup = rawCost / 1_000_000 * common.QuotaPerUnit
+	}
+	preConsumedQuota := billingexpr.QuotaRound(quotaBeforeGroup * groupRatioInfo.GroupRatio)
+
+	freeModel := false
+	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+		if groupRatioInfo.GroupRatio == 0 {
+			preConsumedQuota = 0
+			freeModel = true
+		}
+	}
+
+	exprHash := billingexpr.ExprHashString(exprStr)
+	snapshot := &billingexpr.BillingSnapshot{
+		BillingMode:               billing_setting.BillingModePerSecond,
+		ModelName:                 info.OriginModelName,
+		ExprString:                exprStr,
+		ExprHash:                  exprHash,
+		GroupRatio:                groupRatioInfo.GroupRatio,
+		EstimatedQuotaBeforeGroup: quotaBeforeGroup,
+		EstimatedQuotaAfterGroup:  preConsumedQuota,
+		EstimatedTier:             trace.MatchedTier,
+		QuotaPerUnit:              common.QuotaPerUnit,
+		ExprVersion:               exprVersion,
+	}
+	info.TieredBillingSnapshot = snapshot
+	info.BillingRequestInput = &requestInput
+
+	priceData := types.PriceData{
+		FreeModel:         freeModel,
+		GroupRatioInfo:    groupRatioInfo,
+		Quota:             preConsumedQuota,
+		QuotaToPreConsume: preConsumedQuota,
+	}
+
+	logger.LogDebug(c, "model_price_helper_per_call_second result: model=%s preConsume=%d quotaBeforeGroup=%.2f groupRatio=%.2f duration=%.0f tier=%s", info.OriginModelName, preConsumedQuota, quotaBeforeGroup, groupRatioInfo.GroupRatio, duration, trace.MatchedTier)
 
 	info.PriceData = priceData
 	return priceData, nil
