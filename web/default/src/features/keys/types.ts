@@ -34,6 +34,19 @@ export const apiKeySchema = z.object({
   created_time: z.number(),
   accessed_time: z.number(),
   group: z.string().nullish().default(''),
+  failover_groups: z
+    .preprocess((v) => {
+      if (typeof v === 'string' && v !== '') {
+        try {
+          return JSON.parse(v)
+        } catch {
+          return []
+        }
+      }
+      return Array.isArray(v) ? v : []
+    }, z.array(z.string()))
+    .optional()
+    .default([]),
   cross_group_retry: z
     .preprocess((v) => {
       if (v === 1) return true
@@ -91,6 +104,7 @@ export interface ApiKeyFormData {
   model_limits: string
   allow_ips: string
   group: string
+  failover_groups: string[]
   cross_group_retry: boolean
 }
 

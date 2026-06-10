@@ -11,14 +11,18 @@ const (
 	ContextKeyRequestStartTime ContextKey = "request_start_time"
 
 	/* token related keys */
-	ContextKeyTokenUnlimited         ContextKey = "token_unlimited_quota"
-	ContextKeyTokenKey               ContextKey = "token_key"
-	ContextKeyTokenId                ContextKey = "token_id"
-	ContextKeyTokenGroup             ContextKey = "token_group"
-	ContextKeyTokenSpecificChannelId ContextKey = "specific_channel_id"
-	ContextKeyTokenModelLimitEnabled ContextKey = "token_model_limit_enabled"
-	ContextKeyTokenModelLimit        ContextKey = "token_model_limit"
-	ContextKeyTokenCrossGroupRetry   ContextKey = "token_cross_group_retry"
+	ContextKeyTokenUnlimited          ContextKey = "token_unlimited_quota"
+	ContextKeyTokenKey                ContextKey = "token_key"
+	ContextKeyTokenId                 ContextKey = "token_id"
+	ContextKeyTokenGroup              ContextKey = "token_group"
+	ContextKeyTokenSpecificChannelId  ContextKey = "specific_channel_id"
+	ContextKeyTokenModelLimitEnabled  ContextKey = "token_model_limit_enabled"
+	ContextKeyTokenModelLimit         ContextKey = "token_model_limit"
+	ContextKeyTokenCrossGroupRetry    ContextKey = "token_cross_group_retry"
+	ContextKeyTokenFailoverGroups     ContextKey = "token_failover_groups"
+	ContextKeyFailoverGroupIndex      ContextKey = "failover_group_index"
+	ContextKeyFailoverGroupRetryIndex ContextKey = "failover_group_retry_index"
+	ContextKeyHasNextFailoverGroup    ContextKey = "has_next_failover_group"
 
 	/* channel related keys */
 	ContextKeyChannelId                ContextKey = "channel_id"

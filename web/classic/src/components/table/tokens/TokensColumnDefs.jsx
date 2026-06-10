@@ -89,6 +89,19 @@ const renderStatus = (text, record, t) => {
 
 // Render group column
 const renderGroupColumn = (text, record, t, groupRatios = {}) => {
+  // Show failover groups when multiple groups are configured
+  if (record && record.failover_groups && record.failover_groups.length > 0) {
+    return (
+      <div className='flex flex-wrap items-center gap-1'>
+        {record.failover_groups.map((g, i) => (
+          <span key={g} className='flex items-center gap-0.5'>
+            {i > 0 && <span className='text-gray-400 text-xs'>→</span>}
+            {renderGroup(g)}
+          </span>
+        ))}
+      </div>
+    );
+  }
   if (text === 'auto') {
     return (
       <Tooltip

@@ -86,6 +86,20 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
 
+	// Failover groups take precedence over auto and single group
+	var failoverGroups []string
+	if val, exists := common.GetContextKey(param.Ctx, constant.ContextKeyTokenFailoverGroups); exists {
+		switch groups := val.(type) {
+		case model.FailoverGroupsArray:
+			failoverGroups = groups
+		case []string:
+			failoverGroups = groups
+		}
+	}
+	if len(failoverGroups) > 0 {
+		return cacheGetRandomSatisfiedChannelFailover(param, failoverGroups)
+	}
+
 	if param.TokenGroup == "auto" {
 		if len(setting.GetAutoGroups()) == 0 {
 			return nil, selectGroup, errors.New("auto groups is not enabled")
@@ -159,4 +173,62 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		}
 	}
 	return channel, selectGroup, nil
+}
+
+// cacheGetRandomSatisfiedChannelFailover handles per-token failover group chains.
+// Groups are tried in array order. Within each group, existing priority-based
+// channel selection is used. When all channels in a group fail (across all priorities),
+// the next group in the chain is tried.
+func cacheGetRandomSatisfiedChannelFailover(param *RetryParam, failoverGroups []string) (*model.Channel, string, error) {
+	if len(failoverGroups) == 0 {
+		// Invalid or empty failover groups, fall back to single group
+		group := common.GetContextKeyString(param.Ctx, constant.ContextKeyTokenGroup)
+		channel, err := model.GetRandomSatisfiedChannel(group, param.ModelName, param.GetRetry())
+		return channel, group, err
+	}
+
+	startGroupIndex := 0
+	if lastGroupIndex, exists := common.GetContextKey(param.Ctx, constant.ContextKeyFailoverGroupIndex); exists {
+		if idx, ok := lastGroupIndex.(int); ok {
+			startGroupIndex = idx
+		}
+	}
+
+	for i := startGroupIndex; i < len(failoverGroups); i++ {
+		group := failoverGroups[i]
+		priorityRetry := param.GetRetry()
+		if i > startGroupIndex {
+			priorityRetry = 0
+		}
+
+		logger.LogDebug(param.Ctx, "Failover selecting group: %s, priorityRetry: %d", group, priorityRetry)
+
+		channel, _ := model.GetRandomSatisfiedChannel(group, param.ModelName, priorityRetry)
+		if channel == nil {
+			logger.LogDebug(param.Ctx, "No available channel in failover group %s for model %s, trying next group", group, param.ModelName)
+			common.SetContextKey(param.Ctx, constant.ContextKeyFailoverGroupIndex, i+1)
+			common.SetContextKey(param.Ctx, constant.ContextKeyFailoverGroupRetryIndex, 0)
+			// Signal that there's a next group to try
+			common.SetContextKey(param.Ctx, constant.ContextKeyHasNextFailoverGroup, i+1 < len(failoverGroups))
+			param.SetRetry(0)
+			continue
+		}
+
+		common.SetContextKey(param.Ctx, constant.ContextKeyFailoverGroupIndex, i)
+		// Set auto_group so billing uses the correct group ratio
+		common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, group)
+
+		if priorityRetry >= common.RetryTimes {
+			logger.LogDebug(param.Ctx, "Failover group %s retries exhausted (priorityRetry=%d >= RetryTimes=%d), preparing switch to next group", group, priorityRetry, common.RetryTimes)
+			common.SetContextKey(param.Ctx, constant.ContextKeyFailoverGroupIndex, i+1)
+			// Signal that there's a next group to try
+			common.SetContextKey(param.Ctx, constant.ContextKeyHasNextFailoverGroup, i+1 < len(failoverGroups))
+			param.SetRetry(0)
+			param.ResetRetryNextTry()
+		}
+
+		return channel, group, nil
+	}
+
+	return nil, "", errors.New("all failover groups exhausted")
 }

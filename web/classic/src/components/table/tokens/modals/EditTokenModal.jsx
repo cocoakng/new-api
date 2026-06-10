@@ -46,6 +46,7 @@ import {
   Col,
   Row,
   InputNumber,
+  Select,
 } from '@douyinfe/semi-ui';
 import {
   IconCreditCard,
@@ -53,6 +54,8 @@ import {
   IconSave,
   IconClose,
   IconKey,
+  IconChevronUp,
+  IconChevronDown,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../../../context/Status';
@@ -68,6 +71,8 @@ const EditTokenModal = (props) => {
   const [models, setModels] = useState([]);
   const [groups, setGroups] = useState([]);
   const [showQuotaInput, setShowQuotaInput] = useState(false);
+  const [loadedTokenData, setLoadedTokenData] = useState(null);
+  const [editFailoverGroups, setEditFailoverGroups] = useState([]);
   const isEdit = props.editingToken.id !== undefined;
 
   const getInitValues = () => ({
@@ -80,6 +85,7 @@ const EditTokenModal = (props) => {
     model_limits: [],
     allow_ips: '',
     group: '',
+    failover_groups: [],
     cross_group_retry: false,
     tokenCount: 1,
   });
@@ -169,10 +175,20 @@ const EditTokenModal = (props) => {
       } else {
         data.model_limits = [];
       }
+      // Load failover groups, fall back to single group if not set
+      const failoverGroups = data.failover_groups && data.failover_groups.length > 0
+        ? data.failover_groups
+        : (data.group ? [data.group] : []);
       data.remain_amount = Number(
         quotaToDisplayAmount(data.remain_quota || 0).toFixed(6),
       );
-      if (formApiRef.current) {
+      setEditFailoverGroups(failoverGroups);
+      // Clear single group so editFailoverGroups is the single source of truth
+      if (data.group && failoverGroups.length > 0 && failoverGroups[0] === data.group) {
+        data.group = '';
+      }
+      setLoadedTokenData(data);
+      if (groups.length > 0 && formApiRef.current) {
         formApiRef.current.setValues({ ...getInitValues(), ...data });
       }
     } else {
@@ -189,6 +205,18 @@ const EditTokenModal = (props) => {
     }
     loadModels();
     loadGroups();
+  }, [props.editingToken.id]);
+
+  // When groups are loaded and we have token data, set form values
+  useEffect(() => {
+    if (groups.length > 0 && loadedTokenData && formApiRef.current) {
+      formApiRef.current.setValues({ ...getInitValues(), ...loadedTokenData });
+    }
+  }, [groups]);
+
+  // Reset editFailoverGroups when switching tokens
+  useEffect(() => {
+    setEditFailoverGroups([]);
   }, [props.editingToken.id]);
 
   useEffect(() => {
@@ -238,6 +266,16 @@ const EditTokenModal = (props) => {
       }
       localInputs.model_limits = localInputs.model_limits.join(',');
       localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
+      // Handle multiple groups
+      if (editFailoverGroups && editFailoverGroups.length > 1) {
+        localInputs.group = '';
+        localInputs.failover_groups = editFailoverGroups;
+      } else if (editFailoverGroups && editFailoverGroups.length === 1) {
+        localInputs.group = editFailoverGroups[0];
+        localInputs.failover_groups = [];
+      } else {
+        localInputs.failover_groups = [];
+      }
       let res = await API.put(`/api/token/`, {
         ...localInputs,
         id: parseInt(props.editingToken.id),
@@ -282,6 +320,16 @@ const EditTokenModal = (props) => {
         }
         localInputs.model_limits = localInputs.model_limits.join(',');
         localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
+        // Handle multiple groups
+        if (editFailoverGroups && editFailoverGroups.length > 1) {
+          localInputs.group = '';
+          localInputs.failover_groups = editFailoverGroups;
+        } else if (editFailoverGroups && editFailoverGroups.length === 1) {
+          localInputs.group = editFailoverGroups[0];
+          localInputs.failover_groups = [];
+        } else {
+          localInputs.failover_groups = [];
+        }
         let res = await API.post(`/api/token/`, localInputs);
         const { success, message } = res.data;
         if (success) {
@@ -384,23 +432,97 @@ const EditTokenModal = (props) => {
                   </Col>
                   <Col span={24}>
                     {groups.length > 0 ? (
-                      <Form.Select
-                        field='group'
-                        label={t('令牌分组')}
-                        placeholder={t('令牌分组，默认为用户的分组')}
-                        optionList={groups}
-                        renderOptionItem={renderGroupOption}
-                        filter={(input, option) => {
-                          const q = input.toLowerCase();
-                          return (
-                            option.value?.toLowerCase().includes(q) ||
-                            (typeof option.label === 'string' &&
-                              option.label.toLowerCase().includes(q))
-                          );
-                        }}
-                        showClear
-                        style={{ width: '100%' }}
-                      />
+                      <div>
+                        <label className='text-sm text-gray-600 block mb-1'>
+                          {t('令牌分组')}
+                        </label>
+                        {/* Selected groups list */}
+                        {editFailoverGroups && editFailoverGroups.length > 0 ? (
+                          <div className='flex flex-col gap-1 mb-2'>
+                            {editFailoverGroups.map((g, index) => {
+                              const option = groups.find((o) => o.value === g);
+                              return (
+                                <div
+                                  key={g}
+                                  className='flex items-center gap-2 rounded-md border px-3 py-1.5'
+                                >
+                                  <span className='text-gray-400 text-xs tabular-nums shrink-0'>
+                                    {index + 1}
+                                  </span>
+                                  <span className='text-sm flex-1 truncate'>
+                                    {option?.label || g}
+                                  </span>
+                                  {index > 0 && (
+                                    <Button
+                                      theme='borderless'
+                                      size='small'
+                                      icon={<IconChevronUp />}
+                                      onClick={() => {
+                                        const next = [...editFailoverGroups];
+                                        [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                                        setEditFailoverGroups(next);
+                                      }}
+                                    />
+                                  )}
+                                  {index < editFailoverGroups.length - 1 && (
+                                    <Button
+                                      theme='borderless'
+                                      size='small'
+                                      icon={<IconChevronDown />}
+                                      onClick={() => {
+                                        const next = [...editFailoverGroups];
+                                        [next[index], next[index + 1]] = [next[index + 1], next[index]];
+                                        setEditFailoverGroups(next);
+                                      }}
+                                    />
+                                  )}
+                                  <Button
+                                    theme='borderless'
+                                    size='small'
+                                    icon={<IconClose />}
+                                    onClick={() => {
+                                      const next = editFailoverGroups.filter((_, i) => i !== index);
+                                      setEditFailoverGroups(next);
+                                    }}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                        <Typography.Text type='secondary' style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
+                          {t('失败时自动按顺序切换到下一分组')}
+                        </Typography.Text>
+                        {/* Add group select */}
+                        <Select
+                          placeholder={t('选择分组添加')}
+                          optionList={groups.filter(
+                            (g) =>
+                              !editFailoverGroups?.includes(g.value) &&
+                              g.value !== values.group
+                          )}
+                          renderOptionItem={renderGroupOption}
+                          filter={(input, option) => {
+                            const q = input.toLowerCase();
+                            return (
+                              option.value?.toLowerCase().includes(q) ||
+                              (typeof option.label === 'string' &&
+                                option.label.toLowerCase().includes(q))
+                            );
+                          }}
+                          showClear
+                          style={{ width: '100%' }}
+                          onChange={(val) => {
+                            if (!val) return;
+                            if (editFailoverGroups.includes(val)) return;
+                            setEditFailoverGroups([...editFailoverGroups, val]);
+                            // Clear single group when adding failover
+                            if (editFailoverGroups.length === 0 && values.group) {
+                              formApiRef.current?.setValue('group', '');
+                            }
+                          }}
+                        />
+                      </div>
                     ) : (
                       <Form.Select
                         placeholder={t('管理员未设置用户可选分组')}
@@ -409,21 +531,6 @@ const EditTokenModal = (props) => {
                         style={{ width: '100%' }}
                       />
                     )}
-                  </Col>
-                  <Col
-                    span={24}
-                    style={{
-                      display: values.group === 'auto' ? 'block' : 'none',
-                    }}
-                  >
-                    <Form.Switch
-                      field='cross_group_retry'
-                      label={t('跨分组重试')}
-                      size='default'
-                      extraText={t(
-                        '开启后，当前分组渠道失败时会按顺序尝试下一个分组的渠道',
-                      )}
-                    />
                   </Col>
                   <Col xs={24} sm={24} md={24} lg={10} xl={10}>
                     <Form.DatePicker

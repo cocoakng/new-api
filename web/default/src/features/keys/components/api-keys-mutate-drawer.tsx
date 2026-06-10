@@ -16,11 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm, type SubmitErrorHandler } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, KeyRound, Settings2, WalletCards } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, KeyRound, Settings2, WalletCards, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getUserModels, getUserGroups } from '@/lib/api'
@@ -64,6 +64,13 @@ import {
   sideDrawerHeaderClassName,
   sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from '@/components/ui/combobox'
 import { MultiSelect } from '@/components/multi-select'
 import { createApiKey, updateApiKey, getApiKey } from '../api'
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
@@ -75,10 +82,7 @@ import {
   transformApiKeyToFormDefaults,
 } from '../lib'
 import { type ApiKey } from '../types'
-import {
-  ApiKeyGroupCombobox,
-  type ApiKeyGroupOption,
-} from './api-key-group-combobox'
+import { type ApiKeyGroupOption } from './api-key-group-combobox'
 import { useApiKeys } from './api-keys-provider'
 
 type ApiKeyMutateDrawerProps = {
@@ -147,18 +151,17 @@ export function ApiKeysMutateDrawer({
     }
   }, [open, isUpdate, currentRow, form, defaultUseAutoGroup, backendHasAuto])
 
-  // Correct group after groups load: if the form value is not in available groups, fall back
+  // Correct group after groups load: validate failover_groups
   useEffect(() => {
     if (groups.length === 0) return
-    const currentGroup = form.getValues('group')
-    if (currentGroup && !groups.some((g) => g.value === currentGroup)) {
-      const fallback =
-        groups.find((g) => g.value === 'default')?.value ??
-        groups[0]?.value ??
-        ''
-      form.setValue('group', fallback)
-      if (currentGroup === 'auto') {
-        form.setValue('cross_group_retry', false)
+    const currentFailoverGroups = form.getValues('failover_groups') || []
+    if (currentFailoverGroups.length > 0) {
+      const validGroups = groups.map((g) => g.value)
+      const filtered = currentFailoverGroups.filter((g) =>
+        validGroups.includes(g)
+      )
+      if (filtered.length !== currentFailoverGroups.length) {
+        form.setValue('failover_groups', filtered)
       }
     }
   }, [groups, form])
@@ -243,7 +246,6 @@ export function ApiKeysMutateDrawer({
   const quotaPlaceholder = tokensOnly
     ? t('Enter quota in tokens')
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
-  const selectedGroup = form.watch('group')
   const unlimitedQuota = form.watch('unlimited_quota')
 
   return (
@@ -297,16 +299,16 @@ export function ApiKeysMutateDrawer({
 
               <FormField
                 control={form.control}
-                name='group'
+                name='failover_groups'
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t('Group')}</FormLabel>
                     <FormControl>
-                      <ApiKeyGroupCombobox
-                        options={groups}
-                        value={field.value}
+                      <FailoverGroupsSelector
+                        groups={groups}
+                        value={field.value || []}
                         onValueChange={field.onChange}
-                        placeholder={t('Select a group')}
+                        placeholder={t('Select groups')}
                       />
                     </FormControl>
                     <FormMessage />
@@ -314,31 +316,10 @@ export function ApiKeysMutateDrawer({
                 )}
               />
 
-              {selectedGroup === 'auto' && (
-                <FormField
-                  control={form.control}
-                  name='cross_group_retry'
-                  render={({ field }) => (
-                    <FormItem className={sideDrawerSwitchItemClassName()}>
-                      <div className='flex flex-col gap-0.5'>
-                        <FormLabel className='text-sm'>
-                          {t('Cross-group retry')}
-                        </FormLabel>
-                        <FormDescription className='line-clamp-2 text-xs sm:line-clamp-none'>
-                          {t(
-                            'When enabled, if channels in the current group fail, it will try channels in the next group in order.'
-                          )}
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={!!field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+              {form.watch('failover_groups')?.length > 0 && (
+                <FormDescription className='text-xs'>
+                  {t('Failover automatically switches to the next group on failure')}
+                </FormDescription>
               )}
 
               <FormField
@@ -593,5 +574,118 @@ export function ApiKeysMutateDrawer({
         </SheetFooter>
       </SheetContent>
     </Sheet>
+  )
+}
+
+type FailoverGroupsSelectorProps = {
+  groups: ApiKeyGroupOption[]
+  value: string[]
+  onValueChange: (value: string[]) => void
+  placeholder: string
+}
+
+function FailoverGroupsSelector({
+  groups,
+  value,
+  onValueChange,
+  placeholder,
+}: FailoverGroupsSelectorProps) {
+  const { t } = useTranslation()
+
+  const availableGroups = useMemo(
+    () => groups.filter((g) => !value.includes(g.value)),
+    [groups, value]
+  )
+
+  const moveUp = (index: number) => {
+    if (index === 0) return
+    const next = [...value]
+    ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
+    onValueChange(next)
+  }
+
+  const moveDown = (index: number) => {
+    if (index === value.length - 1) return
+    const next = [...value]
+    ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
+    onValueChange(next)
+  }
+
+  const remove = (index: number) => {
+    onValueChange(value.filter((_, i) => i !== index))
+  }
+
+  const add = (groupValue: string) => {
+    if (value.includes(groupValue)) return
+    onValueChange([...value, groupValue])
+  }
+
+  return (
+    <div className='flex flex-col gap-3'>
+      {value.length > 0 && (
+        <div className='flex flex-col gap-1'>
+          {value.map((g, index) => {
+            const option = groups.find((o) => o.value === g)
+            return (
+              <div
+                key={g}
+                className='flex items-center gap-2 rounded-md border px-3 py-2'
+              >
+                <span className='text-muted-foreground flex shrink-0 text-xs tabular-nums'>
+                  {index + 1}
+                </span>
+                <span className='min-w-0 flex-1 truncate text-sm'>
+                  {option?.label || g}
+                </span>
+                {index > 0 && (
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='icon'
+                    className='size-6'
+                    onClick={() => moveUp(index)}
+                  >
+                    <ArrowUp className='size-3' />
+                  </Button>
+                )}
+                {index < value.length - 1 && (
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='icon'
+                    className='size-6'
+                    onClick={() => moveDown(index)}
+                  >
+                    <ArrowDown className='size-3' />
+                  </Button>
+                )}
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='icon'
+                  className='size-6'
+                  onClick={() => remove(index)}
+                >
+                  <X className='size-3' />
+                </Button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <Combobox value='' onValueChange={add}>
+        <ComboboxInput placeholder={placeholder} />
+        <ComboboxContent>
+          <ComboboxList>
+            {availableGroups.map((g) => (
+              <ComboboxItem key={g.value} value={g.value}>
+                {g.label}
+              </ComboboxItem>
+            ))}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+    </div>
   )
 }

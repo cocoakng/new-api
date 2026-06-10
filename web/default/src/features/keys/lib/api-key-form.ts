@@ -35,7 +35,7 @@ export function getApiKeyFormSchema(t: TFunction) {
       unlimited_quota: z.boolean(),
       model_limits: z.array(z.string()),
       allow_ips: z.string().optional(),
-      group: z.string().optional(),
+      failover_groups: z.array(z.string()).default([]),
       cross_group_retry: z.boolean().optional(),
       tokenCount: z.number().min(1).optional(),
     })
@@ -70,7 +70,7 @@ export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
   unlimited_quota: true,
   model_limits: [],
   allow_ips: '',
-  group: DEFAULT_GROUP,
+  failover_groups: [DEFAULT_GROUP],
   cross_group_retry: true,
   tokenCount: 1,
 }
@@ -80,8 +80,8 @@ export function getApiKeyFormDefaultValues(
 ): ApiKeyFormValues {
   return {
     ...API_KEY_FORM_DEFAULT_VALUES,
-    group: defaultUseAutoGroup ? 'auto' : DEFAULT_GROUP,
-    cross_group_retry: defaultUseAutoGroup,
+    failover_groups: defaultUseAutoGroup ? ['auto'] : [DEFAULT_GROUP],
+    cross_group_retry: true,
   }
 }
 
@@ -95,6 +95,7 @@ export function getApiKeyFormDefaultValues(
 export function transformFormDataToPayload(
   data: ApiKeyFormValues
 ): ApiKeyFormData {
+  const selectedGroups = data.failover_groups || []
   return {
     name: data.name,
     remain_quota: data.unlimited_quota
@@ -107,8 +108,10 @@ export function transformFormDataToPayload(
     model_limits_enabled: data.model_limits.length > 0,
     model_limits: data.model_limits.join(','),
     allow_ips: data.allow_ips || '',
-    group: data.group || '',
-    cross_group_retry: data.group === 'auto' ? !!data.cross_group_retry : false,
+    group: selectedGroups.length === 1 ? selectedGroups[0] : '',
+    failover_groups: selectedGroups.length > 1 ? selectedGroups : [],
+    cross_group_retry:
+      selectedGroups.length > 1 ? true : !!data.cross_group_retry,
   }
 }
 
@@ -118,6 +121,12 @@ export function transformFormDataToPayload(
 export function transformApiKeyToFormDefaults(
   apiKey: ApiKey
 ): ApiKeyFormValues {
+  const failoverGroups = apiKey.failover_groups && apiKey.failover_groups.length > 0
+    ? apiKey.failover_groups
+    : apiKey.group
+      ? [apiKey.group]
+      : [DEFAULT_GROUP]
+
   return {
     name: apiKey.name,
     remain_quota_dollars: apiKey.unlimited_quota
@@ -132,7 +141,7 @@ export function transformApiKeyToFormDefaults(
       ? apiKey.model_limits.split(',').filter(Boolean)
       : [],
     allow_ips: apiKey.allow_ips || '',
-    group: apiKey.group || DEFAULT_GROUP,
+    failover_groups: failoverGroups,
     cross_group_retry: !!apiKey.cross_group_retry,
     tokenCount: 1,
   }

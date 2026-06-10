@@ -190,7 +190,17 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
 
-	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+	for ; ; retryParam.IncreaseRetry() {
+		if retryParam.GetRetry() > common.RetryTimes {
+			// In failover mode, continue if there are more groups to try
+			if _, hasFailover := common.GetContextKey(c, constant.ContextKeyTokenFailoverGroups); hasFailover {
+				if !common.GetContextKeyBool(c, constant.ContextKeyHasNextFailoverGroup) {
+					break
+				}
+			} else {
+				break
+			}
+		}
 		relayInfo.RetryIndex = retryParam.GetRetry()
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
@@ -233,6 +243,32 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
+		// In failover mode, record each failed group attempt
+		if _, hasFailover := common.GetContextKey(c, constant.ContextKeyTokenFailoverGroups); hasFailover {
+			group := common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+			if group == "" {
+				group = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+			}
+			startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
+			useTimeSeconds := int(time.Since(startTime).Seconds())
+			model.RecordConsumeLog(c, relayInfo.UserId, model.RecordConsumeLogParams{
+				ChannelId:      channel.Id,
+				ModelName:      relayInfo.OriginModelName,
+				TokenName:      c.GetString("token_name"),
+				Quota:          0,
+				Content:        fmt.Sprintf("渠道调用失败（尝试 %d/%d）: %v", retryParam.GetRetry()+1, common.RetryTimes+1, newAPIError.Err),
+				TokenId:        relayInfo.TokenId,
+				UseTimeSeconds: useTimeSeconds,
+				IsStream:       relayInfo.IsStream,
+				Group:          group,
+				Other: map[string]interface{}{
+					"error_type":  newAPIError.GetErrorType(),
+					"error_code":  newAPIError.GetErrorCode(),
+					"status_code": newAPIError.StatusCode,
+				},
+			})
+		}
+
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
@@ -259,7 +295,15 @@ var upgrader = websocket.Upgrader{
 
 func addUsedChannel(c *gin.Context, channelId int) {
 	useChannel := c.GetStringSlice("use_channel")
-	useChannel = append(useChannel, fmt.Sprintf("%d", channelId))
+	group := common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+	if group == "" {
+		group = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	}
+	channelInfo := fmt.Sprintf("#%d", channelId)
+	if group != "" {
+		channelInfo = fmt.Sprintf("%s(%s)", channelInfo, group)
+	}
+	useChannel = append(useChannel, channelInfo)
 	c.Set("use_channel", useChannel)
 }
 
@@ -338,6 +382,12 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 		return false
 	}
 	if retryTimes <= 0 {
+		// In failover mode, allow continuing to next group even when RetryTimes=0
+		if _, hasFailover := common.GetContextKey(c, constant.ContextKeyTokenFailoverGroups); hasFailover {
+			if common.GetContextKeyBool(c, constant.ContextKeyHasNextFailoverGroup) {
+				return true
+			}
+		}
 		return false
 	}
 	if _, ok := c.Get("specific_channel_id"); ok {
