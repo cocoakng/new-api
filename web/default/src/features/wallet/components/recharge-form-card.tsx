@@ -70,6 +70,7 @@ interface RechargeFormCardProps {
   priceRatio?: number
   usdExchangeRate?: number
   onOpenBilling?: () => void
+  onOpenRedemptionHistory?: () => void
   creemProducts?: CreemProduct[]
   enableCreemTopup?: boolean
   onCreemProductSelect?: (product: CreemProduct) => void
@@ -78,6 +79,7 @@ interface RechargeFormCardProps {
   waffoMinTopup?: number
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
   enableWaffoPancakeTopup?: boolean
+  enableXunhuTopup?: boolean
 }
 
 export function RechargeFormCard({
@@ -100,6 +102,7 @@ export function RechargeFormCard({
   priceRatio = 1,
   usdExchangeRate = 1,
   onOpenBilling,
+  onOpenRedemptionHistory,
   creemProducts,
   enableCreemTopup,
   onCreemProductSelect,
@@ -108,6 +111,7 @@ export function RechargeFormCard({
   waffoMinTopup,
   onWaffoMethodSelect,
   enableWaffoPancakeTopup,
+  enableXunhuTopup,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
@@ -127,6 +131,7 @@ export function RechargeFormCard({
   const hasConfigurableTopup =
     topupInfo?.enable_online_topup ||
     topupInfo?.enable_stripe_topup ||
+    topupInfo?.enable_xunhu_topup ||
     enableWaffoTopup ||
     enableWaffoPancakeTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
@@ -448,14 +453,27 @@ export function RechargeFormCard({
       {/* Redemption Code Section */}
       {redemptionEnabled ? (
         <div className='space-y-2.5 border-t pt-4 sm:space-y-3 sm:pt-6'>
-          <div className='flex items-center gap-2'>
-            <Gift className='text-muted-foreground h-4 w-4' />
-            <Label
-              htmlFor='redemption-code'
-              className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
-            >
-              {t('Have a Code?')}
-            </Label>
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-2'>
+              <Gift className='text-muted-foreground h-4 w-4' />
+              <Label
+                htmlFor='redemption-code'
+                className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
+              >
+                {t('Have a Code?')}
+              </Label>
+            </div>
+            {onOpenRedemptionHistory && (
+              <Button
+                variant='ghost'
+                size='sm'
+                onClick={onOpenRedemptionHistory}
+                className='h-7 text-xs'
+              >
+                <Receipt className='mr-1 h-3 w-3' />
+                {t('Redemption History')}
+              </Button>
+            )}
           </div>
           <div className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'>
             <Input

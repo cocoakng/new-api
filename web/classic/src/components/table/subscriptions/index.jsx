@@ -35,6 +35,7 @@ const SubscriptionsPage = () => {
   const isMobile = useIsMobile();
   const [statusState] = useContext(StatusContext);
   const enableEpay = !!statusState?.status?.enable_online_topup;
+  const [enableWaffoPancake, setEnableWaffoPancake] = useState(false);
   const [complianceConfirmed, setComplianceConfirmed] = useState(true);
 
   const {
@@ -56,6 +57,9 @@ const SubscriptionsPage = () => {
         if (res.data?.success) {
           setComplianceConfirmed(
             res.data.data?.payment_compliance_confirmed !== false,
+          );
+          setEnableWaffoPancake(
+            res.data.data?.enable_waffo_pancake_topup || false,
           );
         }
       } catch (error) {
@@ -129,6 +133,7 @@ const SubscriptionsPage = () => {
         <SubscriptionsTable
           {...subscriptionsData}
           enableEpay={enableEpay}
+          enableWaffoPancake={enableWaffoPancake}
           complianceConfirmed={complianceConfirmed}
         />
       </CardPro>

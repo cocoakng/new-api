@@ -39,6 +39,7 @@ import InvitationCard from './InvitationCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
+import RedemptionHistoryModal from './modals/RedemptionHistoryModal';
 
 // Reject non-navigable schemes (e.g. javascript:, data:) and relative URLs.
 // Only http / https are allowed for backend-provided redirect targets.
@@ -73,7 +74,7 @@ const TopUp = () => {
   const [enableOnlineTopUp, setEnableOnlineTopUp] = useState(
     statusState?.status?.enable_online_topup || false,
   );
-  const [priceRatio, setPriceRatio] = useState(statusState?.status?.price || 1);
+  const [priceRatio, setPriceRatio] = useState(statusState?.status?.usd_exchange_rate || 1);
 
   const [enableStripeTopUp, setEnableStripeTopUp] = useState(
     statusState?.status?.enable_stripe_topup || false,
@@ -93,6 +94,10 @@ const TopUp = () => {
   const [enableWaffoPancakeTopUp, setEnableWaffoPancakeTopUp] = useState(false);
   const [waffoPancakeMinTopUp, setWaffoPancakeMinTopUp] = useState(1);
 
+  // Xunhu (虎皮椒) 相关状态
+  const [enableXunhuTopUp, setEnableXunhuTopUp] = useState(false);
+  const [xunhuUnitPrice, setXunhuUnitPrice] = useState(1);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
   const [payWay, setPayWay] = useState('');
@@ -110,6 +115,9 @@ const TopUp = () => {
 
   // 账单Modal状态
   const [openHistory, setOpenHistory] = useState(false);
+
+  // 兑换记录Modal状态
+  const [openRedemptionHistory, setOpenRedemptionHistory] = useState(false);
 
   // 订阅相关
   const [subscriptionPlans, setSubscriptionPlans] = useState([]);
@@ -154,6 +162,9 @@ const TopUp = () => {
   const requestAmountByPayment = async (payment, value) => {
     if (payment === 'stripe') {
       return getStripeAmount(value);
+    }
+    if (payment === 'xunhu') {
+      return getXunhuAmount(value);
     }
     if (payment === 'waffo_pancake') {
       return getWaffoPancakeAmount(value);
@@ -219,6 +230,11 @@ const TopUp = () => {
         showError(t('管理员未开启 Waffo Pancake 充值！'));
         return;
       }
+    } else if (payment === 'xunhu') {
+      if (!enableXunhuTopUp) {
+        showError(t('管理员未开启虎皮椒充值！'));
+        return;
+      }
     } else if (payment.startsWith('waffo:')) {
       if (!enableWaffoTopUp) {
         showError(t('管理员未开启 Waffo 充值！'));
@@ -278,6 +294,11 @@ const TopUp = () => {
       if (amount === 0) {
         await getStripeAmount();
       }
+    } else if (payWay === 'xunhu') {
+      // 虎皮椒支付处理
+      if (amount === 0) {
+        await getXunhuAmount();
+      }
     } else {
       // 普通支付处理
       if (amount === 0) {
@@ -298,6 +319,12 @@ const TopUp = () => {
           amount: parseInt(topUpCount),
           payment_method: 'stripe',
         });
+      } else if (payWay === 'xunhu') {
+        // 虎皮椒支付请求
+        res = await API.post('/api/user/xunhu/pay', {
+          amount: parseInt(topUpCount),
+          payment_method: 'xunhu',
+        });
       } else {
         // 普通支付请求
         res = await API.post('/api/user/pay', {
@@ -312,6 +339,9 @@ const TopUp = () => {
           if (payWay === 'stripe') {
             // Stripe 支付回调处理
             window.open(data.pay_link, '_blank');
+          } else if (payWay === 'xunhu') {
+            // 虎皮椒支付回调处理
+            window.open(data.pay_url, '_blank');
           } else {
             // 普通支付表单提交
             let params = data;
@@ -677,9 +707,23 @@ const TopUp = () => {
           setWaffoMinTopUp(data.waffo_min_topup || 1);
           setEnableWaffoPancakeTopUp(enableWaffoPancakeTopUp);
           setWaffoPancakeMinTopUp(data.waffo_pancake_min_topup || 1);
+          setEnableXunhuTopUp(data.enable_xunhu_topup || false);
+          setXunhuUnitPrice(data.xunhu_unit_price || 1);
           setMinTopUp(minTopUpValue);
           setTopUpCount(minTopUpValue);
           setTopUpLink(data.topup_link || '');
+
+          // 如果仅启用了虎皮椒，使用虎皮椒的单价作为价格比例
+          const isOnlyXunhu =
+            data.enable_xunhu_topup &&
+            !data.enable_online_topup &&
+            !data.enable_stripe_topup &&
+            !data.enable_creem_topup &&
+            !data.enable_waffo_topup &&
+            !data.enable_waffo_pancake_topup;
+          if (isOnlyXunhu && data.xunhu_unit_price) {
+            setPriceRatio(data.xunhu_unit_price);
+          }
           setTopupInfo((prev) => ({
             ...prev,
             enable_redemption: data.enable_redemption !== false,
@@ -703,7 +747,11 @@ const TopUp = () => {
           }
 
           // 初始化显示实付金额
-          getAmount(minTopUpValue);
+          if (isOnlyXunhu) {
+            getXunhuAmount(minTopUpValue);
+          } else {
+            getAmount(minTopUpValue);
+          }
         } catch (e) {
           setPayMethods([]);
         }
@@ -794,7 +842,7 @@ const TopUp = () => {
       // const minTopUpValue = statusState.status.min_topup || 1;
       // setMinTopUp(minTopUpValue);
       // setTopUpCount(minTopUpValue);
-      setPriceRatio(statusState.status.price || 1);
+      setPriceRatio(statusState.status.usd_exchange_rate || 1);
 
       setStatusLoading(false);
     }
@@ -807,6 +855,17 @@ const TopUp = () => {
   const getAmount = async (value) => {
     if (value === undefined) {
       value = topUpCount;
+    }
+    // 如果仅启用了虎皮椒，调用虎皮椒金额接口
+    const isOnlyXunhu =
+      enableXunhuTopUp &&
+      !enableOnlineTopUp &&
+      !enableStripeTopUp &&
+      !enableCreemTopUp &&
+      !enableWaffoTopUp &&
+      !enableWaffoPancakeTopUp;
+    if (isOnlyXunhu) {
+      return getXunhuAmount(value);
     }
     setAmountLoading(true);
     try {
@@ -857,6 +916,33 @@ const TopUp = () => {
     }
   };
 
+  const getXunhuAmount = async (value) => {
+    if (value === undefined) {
+      value = topUpCount;
+    }
+    setAmountLoading(true);
+    try {
+      const res = await API.post('/api/user/xunhu/amount', {
+        amount: parseFloat(value),
+      });
+      if (res !== undefined) {
+        const { message, data } = res.data;
+        if (message === 'success') {
+          setAmount(parseFloat(data));
+        } else {
+          setAmount(0);
+          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+        }
+      } else {
+        showError(res);
+      }
+    } catch (err) {
+      // amount fetch failed silently
+    } finally {
+      setAmountLoading(false);
+    }
+  };
+
   const handleCancel = () => {
     setOpen(false);
   };
@@ -867,6 +953,10 @@ const TopUp = () => {
 
   const handleOpenHistory = () => {
     setOpenHistory(true);
+  };
+
+  const handleOpenRedemptionHistory = () => {
+    setOpenRedemptionHistory(true);
   };
 
   const handleHistoryCancel = () => {
@@ -941,6 +1031,13 @@ const TopUp = () => {
         t={t}
       />
 
+      {/* 兑换记录模态框 */}
+      <RedemptionHistoryModal
+        visible={openRedemptionHistory}
+        onCancel={() => setOpenRedemptionHistory(false)}
+        t={t}
+      />
+
       {/* Creem 充值确认模态框 */}
       <Modal
         title={t('确定要充值 $')}
@@ -980,6 +1077,7 @@ const TopUp = () => {
           creemPreTopUp={creemPreTopUp}
           enableWaffoTopUp={enableWaffoTopUp}
           enableWaffoPancakeTopUp={enableWaffoPancakeTopUp}
+          enableXunhuTopUp={enableXunhuTopUp}
           presetAmounts={presetAmounts}
           selectedPreset={selectedPreset}
           selectPresetAmount={selectPresetAmount}
@@ -1008,6 +1106,7 @@ const TopUp = () => {
           statusLoading={statusLoading}
           topupInfo={topupInfo}
           onOpenHistory={handleOpenHistory}
+          onOpenRedemptionHistory={handleOpenRedemptionHistory}
           subscriptionLoading={subscriptionLoading}
           subscriptionPlans={subscriptionPlans}
           billingPreference={billingPreference}

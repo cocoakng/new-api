@@ -265,6 +265,32 @@ func (r *GeneralOpenAIRequest) GetMaxTokens() uint {
 	return lo.FromPtrOr(r.MaxTokens, uint(0))
 }
 
+// GetUserSensitiveInputText returns the text from the latest user message for sensitive word checking.
+// It only checks the current user input, not conversation history or model responses.
+func (r *GeneralOpenAIRequest) GetUserSensitiveInputText() string {
+	if len(r.Messages) == 0 {
+		return ""
+	}
+	// Find the last user message
+	for i := len(r.Messages) - 1; i >= 0; i-- {
+		msg := &r.Messages[i]
+		if msg.Role == "user" {
+			if msg.Content != nil {
+				arrayContent := msg.ParseContent()
+				var texts []string
+				for _, m := range arrayContent {
+					if m.Type == ContentTypeText && m.Text != "" {
+						texts = append(texts, m.Text)
+					}
+				}
+				return strings.Join(texts, "\n")
+			}
+			return ""
+		}
+	}
+	return ""
+}
+
 func (r *GeneralOpenAIRequest) ParseInput() []string {
 	if r.Input == nil {
 		return nil
@@ -947,6 +973,19 @@ func (r *OpenAIResponsesRequest) SetModelName(modelName string) {
 	if modelName != "" {
 		r.Model = modelName
 	}
+}
+
+// GetUserSensitiveInputText returns the text from user input parts for sensitive word checking.
+// For Responses API, we only check the input (user content), not instructions or previous responses.
+func (r *OpenAIResponsesRequest) GetUserSensitiveInputText() string {
+	inputs := r.ParseInput()
+	var texts []string
+	for _, input := range inputs {
+		if input.Type == "input_text" && input.Text != "" {
+			texts = append(texts, input.Text)
+		}
+	}
+	return strings.Join(texts, "\n")
 }
 
 func (r *OpenAIResponsesRequest) GetToolsMap() []map[string]any {

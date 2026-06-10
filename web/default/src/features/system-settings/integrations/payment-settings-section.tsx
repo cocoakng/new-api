@@ -159,6 +159,11 @@ const paymentSchema = z.object({
   WaffoPancakeMerchantID: z.string(),
   WaffoPancakePrivateKey: z.string(),
   WaffoPancakeReturnURL: z.string(),
+  XunhuAppId: z.string(),
+  XunhuAppSecret: z.string(),
+  XunhuApiHost: z.string(),
+  XunhuUnitPrice: z.coerce.number().min(0),
+  XunhuMinTopUp: z.coerce.number().min(0),
 })
 
 type PaymentFormValues = z.infer<typeof paymentSchema>
@@ -439,6 +444,11 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         values.WaffoPancakeReturnURL.trim()
       ),
+      XunhuAppId: values.XunhuAppId.trim(),
+      XunhuAppSecret: values.XunhuAppSecret.trim(),
+      XunhuApiHost: removeTrailingSlash(values.XunhuApiHost.trim()),
+      XunhuUnitPrice: values.XunhuUnitPrice,
+      XunhuMinTopUp: values.XunhuMinTopUp,
     }
 
     const initial = {
@@ -486,6 +496,11 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         initialRef.current.WaffoPancakeReturnURL.trim()
       ),
+      XunhuAppId: initialRef.current.XunhuAppId.trim(),
+      XunhuAppSecret: initialRef.current.XunhuAppSecret.trim(),
+      XunhuApiHost: removeTrailingSlash(initialRef.current.XunhuApiHost.trim()),
+      XunhuUnitPrice: initialRef.current.XunhuUnitPrice,
+      XunhuMinTopUp: initialRef.current.XunhuMinTopUp,
     }
 
     const updates: Array<{ key: string; value: string | number | boolean }> = []
@@ -681,6 +696,29 @@ export function PaymentSettingsSection({
       normalizeJsonForComparison(initial.WaffoPayMethods)
     ) {
       updates.push({ key: 'WaffoPayMethods', value: sanitized.WaffoPayMethods })
+    }
+
+    if (sanitized.XunhuAppId && sanitized.XunhuAppId !== initial.XunhuAppId) {
+      updates.push({ key: 'XunhuAppId', value: sanitized.XunhuAppId })
+    }
+
+    if (
+      sanitized.XunhuAppSecret &&
+      sanitized.XunhuAppSecret !== initial.XunhuAppSecret
+    ) {
+      updates.push({ key: 'XunhuAppSecret', value: sanitized.XunhuAppSecret })
+    }
+
+    if (sanitized.XunhuApiHost !== initial.XunhuApiHost) {
+      updates.push({ key: 'XunhuApiHost', value: sanitized.XunhuApiHost })
+    }
+
+    if (sanitized.XunhuUnitPrice !== initial.XunhuUnitPrice) {
+      updates.push({ key: 'XunhuUnitPrice', value: sanitized.XunhuUnitPrice })
+    }
+
+    if (sanitized.XunhuMinTopUp !== initial.XunhuMinTopUp) {
+      updates.push({ key: 'XunhuMinTopUp', value: sanitized.XunhuMinTopUp })
     }
 
     const hasWaffoPancakeChanges =
@@ -1531,6 +1569,146 @@ export function PaymentSettingsSection({
             payMethods={waffoPayMethods}
             onPayMethodsChange={setWaffoPayMethods}
           />
+
+          <Separator />
+
+          <div className='space-y-4'>
+            <div>
+              <h3 className='text-lg font-medium'>{t('Xunhu Gateway')}</h3>
+              <p className='text-muted-foreground text-sm'>
+                {t('Configuration for Xunhu (虎皮椒) payment integration')}
+              </p>
+            </div>
+
+            <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
+              <p className='mb-2 font-medium'>{t('Webhook Configuration:')}</p>
+              <ul className='list-inside list-disc space-y-1'>
+                <li>
+                  {t('Webhook URL:')}{' '}
+                  <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                    {'<ServerAddress>/api/xunhu/webhook'}
+                  </code>
+                </li>
+                <li>{t('Configure in your Xunhu dashboard')}</li>
+              </ul>
+            </div>
+
+            <div className='grid gap-6 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='XunhuAppId'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('App ID')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t('Enter Xunhu App ID')}
+                        autoComplete='off'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Xunhu App ID (leave blank unless updating)')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='XunhuAppSecret'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('App Secret')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='password'
+                        placeholder={t('Enter new secret to update')}
+                        autoComplete='new-password'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Xunhu App Secret (leave blank unless updating)')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name='XunhuApiHost'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('API Host')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('https://api.xunhupay.com/payment/do.html')}
+                      {...field}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Xunhu API endpoint URL')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className='grid gap-6 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='XunhuUnitPrice'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {t('Unit price (local currency / USD)')}
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        step='0.01'
+                        min={0}
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('e.g., 7.3 means 7.3 CNY per USD')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='XunhuMinTopUp'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Minimum top-up (USD)')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        step='0.01'
+                        min={0}
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Minimum recharge amount in USD')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
         </SettingsForm>
       </Form>
     </SettingsSection>

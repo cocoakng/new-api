@@ -55,6 +55,14 @@ func (r *EmbeddingRequest) SetModelName(modelName string) {
 	}
 }
 
+func (r *EmbeddingRequest) GetUserSensitiveInputText() string {
+	inputs := r.ParseInput()
+	if len(inputs) == 0 {
+		return ""
+	}
+	return strings.Join(inputs, "\n")
+}
+
 func (r *EmbeddingRequest) ParseInput() []string {
 	if r.Input == nil {
 		return make([]string, 0)

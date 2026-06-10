@@ -2,7 +2,7 @@
 
 ![new-api](/web/default/public/logo.png)
 
-# New API
+# New API2
 
 🍥 **新一代大模型網關與AI資產管理系統**
 

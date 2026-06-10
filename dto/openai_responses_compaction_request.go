@@ -38,3 +38,10 @@ func (r *OpenAIResponsesCompactionRequest) SetModelName(modelName string) {
 		r.Model = modelName
 	}
 }
+
+func (r *OpenAIResponsesCompactionRequest) GetUserSensitiveInputText() string {
+	if len(r.Input) == 0 {
+		return ""
+	}
+	return string(r.Input)
+}

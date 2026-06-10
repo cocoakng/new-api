@@ -23,13 +23,16 @@ import {
   calculateAmount,
   calculateStripeAmount,
   calculateWaffoPancakeAmount,
+  calculateXunhuAmount,
   requestPayment,
   requestStripePayment,
+  requestXunhuPayment,
   isApiSuccess,
 } from '../api'
 import {
   isStripePayment,
   isWaffoPancakePayment,
+  isXunhuPayment,
   submitPaymentForm,
 } from '../lib'
 
@@ -50,11 +53,14 @@ export function usePayment() {
 
         const isStripe = isStripePayment(paymentType)
         const isPancake = isWaffoPancakePayment(paymentType)
+        const isXunhu = isXunhuPayment(paymentType)
         const response = isStripe
           ? await calculateStripeAmount({ amount: topupAmount })
           : isPancake
             ? await calculateWaffoPancakeAmount({ amount: topupAmount })
-            : await calculateAmount({ amount: topupAmount })
+            : isXunhu
+              ? await calculateXunhuAmount({ amount: topupAmount })
+              : await calculateAmount({ amount: topupAmount })
 
         if (isApiSuccess(response) && response.data) {
           const calculatedAmount = parseFloat(response.data)
@@ -82,6 +88,7 @@ export function usePayment() {
         setProcessing(true)
 
         const isStripe = isStripePayment(paymentType)
+        const isXunhu = isXunhuPayment(paymentType)
         const amount = Math.floor(topupAmount)
 
         const response = isStripe
@@ -89,10 +96,15 @@ export function usePayment() {
               amount,
               payment_method: 'stripe',
             })
-          : await requestPayment({
-              amount,
-              payment_method: paymentType,
-            })
+          : isXunhu
+            ? await requestXunhuPayment({
+                amount,
+                payment_method: paymentType,
+              })
+            : await requestPayment({
+                amount,
+                payment_method: paymentType,
+              })
 
         if (!isApiSuccess(response)) {
           toast.error(response.message || i18next.t('Payment request failed'))
@@ -102,6 +114,13 @@ export function usePayment() {
         // Handle Stripe payment
         if (isStripe && response.data?.pay_link) {
           window.open(response.data.pay_link as string, '_blank')
+          toast.success(i18next.t('Redirecting to payment page...'))
+          return true
+        }
+
+        // Handle Xunhu payment
+        if (isXunhu && response.data?.pay_url) {
+          window.open(response.data.pay_url as string, '_blank')
           toast.success(i18next.t('Redirecting to payment page...'))
           return true
         }

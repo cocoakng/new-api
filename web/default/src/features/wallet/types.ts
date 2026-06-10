@@ -150,6 +150,10 @@ export interface TopupInfo {
   enable_waffo_pancake_topup?: boolean
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
+  /** Whether Xunhu (虎皮椒) topup is enabled */
+  enable_xunhu_topup?: boolean
+  /** Minimum topup amount for Xunhu */
+  xunhu_min_topup?: number
   /** Whether redemption code usage is enabled */
   enable_redemption?: boolean
   /** Whether compliance confirmation has been completed */
@@ -286,4 +290,38 @@ export interface BillingHistoryResponse {
  */
 export interface CompleteOrderRequest {
   trade_no: string
+}
+
+/**
+ * Redemption record for user's own redemption history
+ */
+export interface UserRedemption {
+  /** Record ID */
+  id: number
+  /** Creator user ID */
+  user_id: number
+  /** Redemption code key (masked for display) */
+  key: string
+  /** Status: 1 = unused, 2 = used, 3 = disabled */
+  status: number
+  /** Redemption name/description */
+  name: string
+  /** Quota amount */
+  quota: number
+  /** Created timestamp */
+  created_time: number
+  /** Redeemed timestamp */
+  redeemed_time: number
+  /** User ID who redeemed this code */
+  used_user_id: number
+  /** Expiration timestamp, 0 = no expiration */
+  expired_time: number
+}
+
+/**
+ * Redemption history response
+ */
+export interface RedemptionHistoryResponse {
+  items: UserRedemption[]
+  total: number
 }

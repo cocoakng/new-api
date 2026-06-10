@@ -44,9 +44,9 @@ func (r *GeminiChatRequest) UnmarshalJSON(data []byte) error {
 }
 
 type ToolConfig struct {
-	FunctionCallingConfig *FunctionCallingConfig `json:"functionCallingConfig,omitempty"`
-	RetrievalConfig       *RetrievalConfig       `json:"retrievalConfig,omitempty"`
-	IncludeServerSideToolInvocations *bool       `json:"includeServerSideToolInvocations,omitempty"`
+	FunctionCallingConfig            *FunctionCallingConfig `json:"functionCallingConfig,omitempty"`
+	RetrievalConfig                  *RetrievalConfig       `json:"retrievalConfig,omitempty"`
+	IncludeServerSideToolInvocations *bool                  `json:"includeServerSideToolInvocations,omitempty"`
 }
 
 type FunctionCallingConfig struct {
@@ -122,6 +122,27 @@ func (r *GeminiChatRequest) IsStream(c *gin.Context) bool {
 
 func (r *GeminiChatRequest) SetModelName(modelName string) {
 	// GeminiChatRequest does not have a model field, so this method does nothing.
+}
+
+// GetUserSensitiveInputText returns the text from the latest user content for sensitive word checking.
+func (r *GeminiChatRequest) GetUserSensitiveInputText() string {
+	if len(r.Contents) == 0 {
+		return ""
+	}
+	// Find the last user content
+	for i := len(r.Contents) - 1; i >= 0; i-- {
+		content := &r.Contents[i]
+		if content.Role == "user" {
+			var texts []string
+			for _, part := range content.Parts {
+				if part.Text != "" {
+					texts = append(texts, part.Text)
+				}
+			}
+			return strings.Join(texts, "\n")
+		}
+	}
+	return ""
 }
 
 func (r *GeminiChatRequest) GetTools() []GeminiChatTool {
@@ -538,6 +559,16 @@ func (r *GeminiEmbeddingRequest) SetModelName(modelName string) {
 	}
 }
 
+func (r *GeminiEmbeddingRequest) GetUserSensitiveInputText() string {
+	var texts []string
+	for _, part := range r.Content.Parts {
+		if part.Text != "" {
+			texts = append(texts, part.Text)
+		}
+	}
+	return strings.Join(texts, "\n")
+}
+
 type GeminiBatchEmbeddingRequest struct {
 	Requests []*GeminiEmbeddingRequest `json:"requests"`
 }
@@ -567,6 +598,18 @@ func (r *GeminiBatchEmbeddingRequest) SetModelName(modelName string) {
 			req.SetModelName(modelName)
 		}
 	}
+}
+
+func (r *GeminiBatchEmbeddingRequest) GetUserSensitiveInputText() string {
+	var texts []string
+	for _, req := range r.Requests {
+		for _, part := range req.Content.Parts {
+			if part.Text != "" {
+				texts = append(texts, part.Text)
+			}
+		}
+	}
+	return strings.Join(texts, "\n")
 }
 
 type GeminiEmbeddingResponse struct {

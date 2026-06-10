@@ -151,6 +151,12 @@ const PaymentConfirmModal = ({
                               objectFit: 'contain',
                             }}
                           />
+                        ) : payMethod.type === 'xunhu' ? (
+                          <SiWechat
+                            className='mr-2'
+                            size={16}
+                            color='#07C160'
+                          />
                         ) : (
                           <CreditCard
                             className='mr-2'

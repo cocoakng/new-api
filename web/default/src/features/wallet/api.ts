@@ -38,6 +38,7 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  RedemptionHistoryResponse,
 } from './types'
 
 // ============================================================================
@@ -169,6 +170,30 @@ export async function requestWaffoPancakePayment(
 }
 
 /**
+ * Calculate payment amount for Xunhu payment
+ */
+export async function calculateXunhuAmount(
+  request: AmountRequest
+): Promise<AmountResponse> {
+  const res = await api.post('/api/user/xunhu/amount', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Request Xunhu payment
+ */
+export async function requestXunhuPayment(
+  request: PaymentRequest
+): Promise<PaymentResponse> {
+  const res = await api.post('/api/user/xunhu/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
  * Get affiliate code
  */
 export async function getAffiliateCode(): Promise<AffiliateCodeResponse> {
@@ -231,5 +256,24 @@ export async function completeOrder(
   request: CompleteOrderRequest
 ): Promise<ApiResponse> {
   const res = await api.post('/api/user/topup/complete', request)
+  return res.data
+}
+
+/**
+ * Get redemption history for current user
+ */
+export async function getUserRedemptionHistory(
+  page: number,
+  pageSize: number,
+  keyword?: string
+): Promise<ApiResponse<RedemptionHistoryResponse>> {
+  const params = new URLSearchParams({
+    p: page.toString(),
+    page_size: pageSize.toString(),
+  })
+  if (keyword) {
+    params.append('keyword', keyword)
+  }
+  const res = await api.get(`/api/user/redemptions?${params.toString()}`)
   return res.data
 }

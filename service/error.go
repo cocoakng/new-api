@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -103,6 +104,20 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 
 	err = common.Unmarshal(responseBody, &errResponse)
 	if err != nil {
+		// Debug: log raw upstream error body
+		logger.LogError(ctx, fmt.Sprintf("[DEBUG] raw error body (first 500 bytes): %s", common.LocalLogPreview(string(responseBody))))
+
+		// JSON parse failed — try extracting error from SSE-formatted response.
+		// Upstream may return SSE errors like:
+		//   event: error
+		//   data: {"error":{"message":"...","type":"..."}}
+		if sseErr := parseSSEError(responseBody); sseErr != nil {
+			newApiErr = types.NewOpenAIError(sseErr, types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
+			if showBodyWhenFail {
+				newApiErr.Err = buildErrWithBody(newApiErr.Error())
+			}
+			return
+		}
 		if showBodyWhenFail {
 			newApiErr.Err = buildErrWithBody("")
 		} else {
@@ -128,6 +143,59 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		newApiErr.Err = buildErrWithBody(newApiErr.Error())
 	}
 	return
+}
+
+// parseSSEError attempts to extract an error message from an SSE-formatted response.
+// SSE errors look like:
+//
+//	event: error
+//	data: {"error":{"message":"...","type":"..."}}
+//
+// Returns a non-nil error if SSE error data is found and parsed.
+func parseSSEError(body []byte) error {
+	if len(body) == 0 {
+		return nil
+	}
+
+	// Quick check: SSE body must contain "event:" or "data:"
+	if !bytes.Contains(body, []byte("event:")) && !bytes.Contains(body, []byte("data:")) {
+		return nil
+	}
+
+	// Extract the last "data:" line (SSE spec: last data field is the message)
+	var lastData string
+	lines := strings.Split(string(body), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "data:") {
+			lastData = strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		}
+	}
+	if lastData == "" {
+		return nil
+	}
+
+	// Try parsing the data as OpenAI error format
+	var openAIError struct {
+		Error struct {
+			Message string `json:"message"`
+			Type    string `json:"type"`
+		} `json:"error"`
+		Message string `json:"message"`
+	}
+	if err := common.Unmarshal([]byte(lastData), &openAIError); err != nil {
+		return nil
+	}
+	if openAIError.Error.Message != "" {
+		if openAIError.Error.Type != "" {
+			return fmt.Errorf("[%s] %s", openAIError.Error.Type, openAIError.Error.Message)
+		}
+		return errors.New(openAIError.Error.Message)
+	}
+	if openAIError.Message != "" {
+		return errors.New(openAIError.Message)
+	}
+	return nil
 }
 
 func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) {
