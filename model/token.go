@@ -60,7 +60,7 @@ type Token struct {
 	UsedQuota          int                 `json:"used_quota" gorm:"default:0"` // used quota
 	Group              string              `json:"group" gorm:"default:''"`
 	CrossGroupRetry    bool                `json:"cross_group_retry"`                           // 跨分组重试，仅auto分组有效
-	FailoverGroups     FailoverGroupsArray `json:"failover_groups" gorm:"type:text;default:''"` // 多分组故障转移链
+	FailoverGroups     FailoverGroupsArray `json:"failover_groups" gorm:"type:text"` // 多分组故障转移链
 	DeletedAt          gorm.DeletedAt      `gorm:"index"`
 }
 
