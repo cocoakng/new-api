@@ -92,9 +92,7 @@ const toNormalizedNumber = (value) => {
 };
 
 // Parse a v2 per_second expression back into visual tiers.
-// Supports both resolution-based and width-based expressions:
-//   v2:has(param("resolution"), "1080") ? tier("label", duration * price) : ...
-//   v2:param("width") <= N ? tier("label", duration * price) : ...
+// Handles mixed expressions with both resolution and width conditions.
 const parsePerSecondExprToTiers = (expr) => {
   if (!expr || !expr.startsWith('v2:')) return [];
   const body = expr.slice(3).trim();
@@ -135,25 +133,50 @@ const parsePerSecondExprToTiers = (expr) => {
       widthConditions.push({ op: condMatch[1], value: parseInt(condMatch[2]) });
     }
 
-    // Assign based on which pattern was found (resolution takes priority)
-    if (resConditions.length > 0) {
-      for (let i = 0; i < tiers.length && i < resConditions.length; i++) {
-        tiers[i].resolution = resConditions[i];
+    // Assign conditions to tiers in order: resolution first, then width, then base
+    let resIdx = 0;
+    let widthIdx = 0;
+
+    // First pass: assign resolution conditions
+    for (let i = 0; i < tiers.length && resIdx < resConditions.length; i++) {
+      if (tiers[i].resolution === null && tiers[i].maxWidth === null) {
+        tiers[i].resolution = resConditions[resIdx];
+        resIdx++;
       }
-    } else if (widthConditions.length > 0) {
-      for (let i = 0; i < tiers.length && i < widthConditions.length; i++) {
-        const cond = widthConditions[i];
+    }
+
+    // Second pass: assign width conditions to remaining unassigned tiers
+    for (let i = 0; i < tiers.length && widthIdx < widthConditions.length; i++) {
+      if (tiers[i].resolution === null && tiers[i].maxWidth === null) {
+        const cond = widthConditions[widthIdx];
         if (cond.op === '<=') {
           tiers[i].maxWidth = cond.value;
         } else if (cond.op === '<') {
           tiers[i].maxWidth = cond.value - 1;
         }
+        widthIdx++;
       }
     }
-    // Sort by numeric value ascending (null = catch-all = last)
+
+    // Sort: resolution tiers (by value), then width tiers (by value), then base
+    const parseResolutionNum = (res) => {
+      if (!res) return Infinity;
+      const m = res.match(/(\d+)/);
+      return m ? parseInt(m[1]) : Infinity;
+    };
+
     tiers.sort((a, b) => {
-      const aVal = a.resolution !== null ? parseResolutionNum(a.resolution) : (a.maxWidth ?? Infinity);
-      const bVal = b.resolution !== null ? parseResolutionNum(b.resolution) : (b.maxWidth ?? Infinity);
+      const aIsRes = a.resolution !== null;
+      const bIsRes = b.resolution !== null;
+      // Resolution tiers first
+      if (aIsRes && !bIsRes) return -1;
+      if (!aIsRes && bIsRes) return 1;
+      // Within same category, sort by value
+      if (aIsRes) {
+        return parseResolutionNum(a.resolution) - parseResolutionNum(b.resolution);
+      }
+      const aVal = a.maxWidth ?? Infinity;
+      const bVal = b.maxWidth ?? Infinity;
       if (aVal === Infinity && bVal !== Infinity) return 1;
       if (bVal === Infinity && aVal !== Infinity) return -1;
       return aVal - bVal;
@@ -170,52 +193,60 @@ const parseResolutionNum = (res) => {
 };
 
 // Build a v2 per_second expression from visual tiers.
-// Supports two modes based on which field is populated:
+// Supports three condition types that can be mixed within the same expression:
 //   - resolution mode: has(param("resolution"), "1080") ? tier(...) : ...
 //   - width mode:      param("width") <= N ? tier(...) : ...
+//   - base (no condition): tier("base", duration * price)
+//
+// Ordering: resolution tiers first (sorted), then width tiers (sorted),
+// then base tier as fallback.
 const buildPerSecondExprFromTiers = (tiers) => {
   if (!tiers || tiers.length === 0) return '';
   const validTiers = tiers.filter((t) => hasValue(t.pricePerSecond));
   if (validTiers.length === 0) return '';
 
-  // Detect mode: if any tier has resolution, use resolution mode
-  const useResolution = validTiers.some(t => t.resolution !== null && t.resolution !== '');
+  const parseResolutionNum = (res) => {
+    if (!res) return Infinity;
+    const m = res.match(/(\d+)/);
+    return m ? parseInt(m[1]) : Infinity;
+  };
 
-  const sorted = [...validTiers].sort((a, b) => {
-    const aVal = useResolution ? parseResolutionNum(a.resolution) : (a.maxWidth ?? Infinity);
-    const bVal = useResolution ? parseResolutionNum(b.resolution) : (b.maxWidth ?? Infinity);
-    if (aVal === Infinity && bVal !== Infinity) return 1;
-    if (bVal === Infinity && aVal !== Infinity) return -1;
-    return aVal - bVal;
-  });
+  // Categorize tiers by condition type
+  const resTiers = validTiers.filter(t => t.resolution !== null && t.resolution !== '');
+  const widthTiers = validTiers.filter(t => t.resolution === null && t.maxWidth !== null && t.maxWidth !== undefined && t.maxWidth !== '');
+  const baseTiers = validTiers.filter(t => t.resolution === null && (t.maxWidth === null || t.maxWidth === undefined || t.maxWidth === ''));
 
+  // Sort within each category
+  resTiers.sort((a, b) => parseResolutionNum(a.resolution) - parseResolutionNum(b.resolution));
+  widthTiers.sort((a, b) => (a.maxWidth ?? Infinity) - (b.maxWidth ?? Infinity));
+
+  // Build expression: resolve tiers → width tiers → base
   let expr = '';
-  for (let i = 0; i < sorted.length; i++) {
-    const tier = sorted[i];
-    const tierExpr = `tier("${tier.label}", duration * ${tier.pricePerSecond})`;
-    const matchValue = useResolution ? tier.resolution : tier.maxWidth;
 
-    if (matchValue !== null && matchValue !== '') {
-      if (useResolution) {
-        if (expr) {
-          expr = `has(param("resolution"), "${matchValue}") ? ${tierExpr} : ${expr}`;
-        } else {
-          expr = `has(param("resolution"), "${matchValue}") ? ${tierExpr} : `;
-        }
-      } else {
-        if (expr) {
-          expr = `param("width") <= ${matchValue} ? ${tierExpr} : ${expr}`;
-        } else {
-          expr = `param("width") <= ${matchValue} ? ${tierExpr} : `;
-        }
-      }
+  // Add base tier first (as fallback)
+  if (baseTiers.length > 0) {
+    expr = `tier("${baseTiers[0].label}", duration * ${baseTiers[0].pricePerSecond})`;
+  }
+
+  // Add width tiers (each wraps previous expr)
+  for (let i = widthTiers.length - 1; i >= 0; i--) {
+    const tier = widthTiers[i];
+    const tierExpr = `tier("${tier.label}", duration * ${tier.pricePerSecond})`;
+    if (expr) {
+      expr = `param("width") <= ${tier.maxWidth} ? ${tierExpr} : ${expr}`;
     } else {
-      // Catch-all tier
-      if (expr) {
-        expr = expr + tierExpr;
-      } else {
-        expr = tierExpr;
-      }
+      expr = `param("width") <= ${tier.maxWidth} ? ${tierExpr} : `;
+    }
+  }
+
+  // Add resolution tiers (each wraps previous expr)
+  for (let i = resTiers.length - 1; i >= 0; i--) {
+    const tier = resTiers[i];
+    const tierExpr = `tier("${tier.label}", duration * ${tier.pricePerSecond})`;
+    if (expr) {
+      expr = `has(param("resolution"), "${tier.resolution}") ? ${tierExpr} : ${expr}`;
+    } else {
+      expr = `has(param("resolution"), "${tier.resolution}") ? ${tierExpr} : `;
     }
   }
 
@@ -1179,6 +1210,8 @@ export function useModelPricingEditorState({
           audioOutputPrice: selectedModel.audioOutputPrice,
           billingExpr: selectedModel.billingExpr || '',
           requestRuleExpr: selectedModel.requestRuleExpr || '',
+          perSecondTiers: selectedModel.perSecondTiers || [],
+          perSecondRatioLocked: selectedModel.perSecondRatioLocked,
         };
 
         if (

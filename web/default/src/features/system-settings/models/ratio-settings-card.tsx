@@ -391,6 +391,8 @@ export function RatioSettingsCard({
         return
       }
 
+      toast.success(t('Saving {{count}} fields', { count: updates.length }))
+
       for (const key of updates) {
         const apiKey = apiKeyMap[key as string] || (key as string)
         await updateOption.mutateAsync({ key: apiKey, value: normalized[key] })
@@ -398,6 +400,7 @@ export function RatioSettingsCard({
 
       modelNormalizedDefaults.current = normalized
       setSavedModelValues(normalized)
+      toast.success(t('Model prices saved successfully'))
     },
     [t, updateOption]
   )

@@ -245,6 +245,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               savedAudioCompletionRatio={savedValues.AudioCompletionRatio}
               savedBillingMode={savedValues.BillingMode}
               savedBillingExpr={savedValues.BillingExpr}
+              savedPerSecondExpr={savedValues.PerSecondExpr}
               modelPrice={form.watch('ModelPrice')}
               modelRatio={form.watch('ModelRatio')}
               cacheRatio={form.watch('CacheRatio')}
@@ -258,6 +259,19 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               perSecondExpr={form.watch('PerSecondExpr')}
               onSave={handleSave}
               isSaving={isSaving}
+              getCurrentValues={() => ({
+                modelPrice: form.getValues('ModelPrice'),
+                modelRatio: form.getValues('ModelRatio'),
+                cacheRatio: form.getValues('CacheRatio'),
+                createCacheRatio: form.getValues('CreateCacheRatio'),
+                completionRatio: form.getValues('CompletionRatio'),
+                imageRatio: form.getValues('ImageRatio'),
+                audioRatio: form.getValues('AudioRatio'),
+                audioCompletionRatio: form.getValues('AudioCompletionRatio'),
+                billingMode: form.getValues('BillingMode'),
+                billingExpr: form.getValues('BillingExpr'),
+                perSecondExpr: form.getValues('PerSecondExpr'),
+              })}
               onChange={(field, value) => {
                 const fieldMap: Record<string, keyof ModelFormValues> = {
                   'billing_setting.billing_mode': 'BillingMode',

@@ -62,7 +62,7 @@ import {
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import {
-  parsePerSecondTiers,
+  formatPerSecondPrice,
 } from '../lib/per-second-price'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
 import { inferModelMetadata } from '../lib/model-metadata'
@@ -489,35 +489,29 @@ function PriceSection(props: {
   const isPerSecond =
     props.model.billing_mode === 'per_second' && Boolean(props.model.billing_expr)
   if (isPerSecond && props.model.billing_expr) {
-    const tiers = parsePerSecondTiers(props.model.billing_expr)
-    if (tiers.length > 0) {
+    const perSecondSummary = formatPerSecondPrice(props.model.billing_expr, {
+      groupRatio: getDynamicDisplayGroupRatio(props.model),
+      priceRate: props.priceRate,
+      usdExchangeRate: props.usdExchangeRate,
+      quotaDisplayType: props.quotaDisplayType,
+      customCurrencySymbol: props.customCurrencySymbol,
+      customCurrencyExchangeRate: props.customCurrencyExchangeRate,
+    })
+    if (perSecondSummary.length > 0) {
       return (
         <section>
           <SectionTitle>{t('Base Price')}</SectionTitle>
           <div className='grid grid-cols-2 gap-2'>
-            {tiers.map((tier) => (
+            {perSecondSummary.map((entry) => (
               <div
-                key={tier.label}
+                key={entry.label}
                 className='bg-muted/20 rounded-lg border p-3'
               >
                 <div className='text-muted-foreground text-xs'>
-                  {tier.label}
+                  {entry.label}
                 </div>
                 <div className='text-foreground mt-1 font-mono text-base font-semibold tabular-nums'>
-                  {(() => {
-                    const currencySymbol = (() => {
-                      if (props.quotaDisplayType === 'CNY') return '¥'
-                      if (props.quotaDisplayType === 'CUSTOM') return props.customCurrencySymbol ?? '¤'
-                      return '$'
-                    })()
-                    const exchangeRate = (() => {
-                      if (props.quotaDisplayType === 'CNY') return props.usdExchangeRate
-                      if (props.quotaDisplayType === 'CUSTOM') return props.customCurrencyExchangeRate ?? 1
-                      return 1
-                    })()
-                    const num = parseFloat(tier.pricePerSecond) * exchangeRate * props.priceRate
-                    return `${currencySymbol}${num.toFixed(3)}`
-                  })()}
+                  {entry.formatted}
                   <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
                     / {t('second')}
                   </span>

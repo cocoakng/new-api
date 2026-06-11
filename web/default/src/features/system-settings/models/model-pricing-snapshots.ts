@@ -78,6 +78,7 @@ const ratioToPrice = (ratio?: string, denominator?: string) => {
 export const getModeLabel = (mode?: string) => {
   if (mode === 'per-request') return 'Per-request'
   if (mode === 'tiered_expr') return 'Expression'
+  if (mode === 'per_second') return 'Per-second'
   return 'Per-token'
 }
 
@@ -86,6 +87,7 @@ export const getModeVariant = (
 ): 'warning' | 'info' | 'success' => {
   if (mode === 'per-request') return 'warning'
   if (mode === 'tiered_expr') return 'info'
+  if (mode === 'per_second') return 'warning'
   return 'success'
 }
 
@@ -106,6 +108,14 @@ export const getPriceSummary = (
 ) => {
   if (row.billingMode === 'tiered_expr') {
     return getExpressionSummary(row, t)
+  }
+  if (row.billingMode === 'per_second') {
+    const expr = row.perSecondExpr || ''
+    if (expr.startsWith('v2:')) {
+      const tierCount = (expr.match(/tier\(/g) || []).length
+      return `${t('Per-second')} · ${tierCount} ${t('tiers')}`
+    }
+    return t('Per-second pricing')
   }
   if (row.billingMode === 'per-request') {
     return row.price ? `$${row.price} / ${t('request')}` : t('Unset price')
@@ -136,6 +146,9 @@ export const getPriceDetail = (
     return row.requestRuleExpr
       ? t('Includes request rules')
       : t('Expression based')
+  }
+  if (row.billingMode === 'per_second') {
+    return t('Duration-based pricing')
   }
   if (row.billingMode === 'per-request') {
     return t('Fixed request price')
@@ -169,6 +182,7 @@ export const buildModelSnapshots = ({
   audioCompletionRatio,
   billingMode,
   billingExpr,
+  perSecondExpr,
 }: ModelPricingSnapshotInput): ModelPricingSnapshot[] => {
   const priceMap = safeJsonParse<Record<string, number>>(modelPrice, {
     fallback: {},
@@ -211,7 +225,7 @@ export const buildModelSnapshots = ({
     context: 'billing expression',
   })
   const perSecondExprMap = safeJsonParse<Record<string, string>>(
-    input.perSecondExpr ?? '',
+    perSecondExpr ?? '',
     { fallback: {}, context: 'per second expression' }
   )
 

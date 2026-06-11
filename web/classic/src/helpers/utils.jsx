@@ -761,6 +761,16 @@ export const calculateModelPrice = ({
     };
   }
 
+  if (record.quota_type === 2) {
+    // 按秒计费
+    return {
+      isPerSecond: true,
+      perSecondExpr: record.billing_expr || record.per_second_expr,
+      usedGroup,
+      usedGroupRatio,
+    };
+  }
+
   // 未知计费类型，返回占位信息
   return {
     price: '-',
@@ -784,6 +794,20 @@ export const getModelPriceItems = (
         value: '',
         suffix: '',
         isDynamic: true,
+      },
+    ];
+  }
+
+  if (priceData.isPerSecond) {
+    const expr = priceData.perSecondExpr || '';
+    const tierCount = (expr.match(/tier\(/g) || []).length;
+    return [
+      {
+        key: 'per-second',
+        label: t('按秒计费'),
+        value: tierCount > 0 ? `${t('阶梯')} · ${tierCount} ${t('档')}` : t('表达式计费'),
+        suffix: '',
+        isPerSecond: true,
       },
     ];
   }

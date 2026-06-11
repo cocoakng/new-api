@@ -94,6 +94,12 @@ type ModelRatioVisualEditorProps = {
   onChange: (field: string, value: string) => void
   onSave: () => void | Promise<void>
   isSaving: boolean
+  getCurrentValues?: () => {
+    modelPrice: string; modelRatio: string; cacheRatio: string;
+    createCacheRatio: string; completionRatio: string; imageRatio: string;
+    audioRatio: string; audioCompletionRatio: string;
+    billingMode: string; billingExpr: string; perSecondExpr: string;
+  }
 }
 
 export type ModelRatioVisualEditorHandle = {
@@ -132,6 +138,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     onChange,
     onSave,
     isSaving,
+    getCurrentValues,
   },
   ref
 ) {
@@ -249,6 +256,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     savedAudioCompletionRatio,
     savedBillingMode,
     savedBillingExpr,
+    savedPerSecondExpr,
     modelPrice,
     modelRatio,
     cacheRatio,
@@ -259,6 +267,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     audioCompletionRatio,
     billingMode,
     billingExpr,
+    perSecondExpr,
   ])
 
   const modeCounts = useMemo(
@@ -267,7 +276,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
         (acc, model) => {
           const mode =
             model.billingMode === 'per-request' ||
-            model.billingMode === 'tiered_expr'
+            model.billingMode === 'tiered_expr' ||
+            model.billingMode === 'per_second'
               ? model.billingMode
               : 'per-token'
           acc[mode] += 1
@@ -277,7 +287,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
           'per-token': 0,
           'per-request': 0,
           tiered_expr: 0,
-        } as Record<'per-token' | 'per-request' | 'tiered_expr', number>
+          per_second: 0,
+        } as Record<'per-token' | 'per-request' | 'tiered_expr' | 'per_second', number>
       ),
     [models]
   )
@@ -296,12 +307,15 @@ const ModelRatioVisualEditorComponent = forwardRef<
         audioRatio: editableModel.audioRatio,
         audioCompletionRatio: editableModel.audioCompletionRatio,
         billingMode:
-          editableModel.billingMode === 'tiered_expr'
-            ? 'tiered_expr'
-            : editableModel.price && editableModel.price !== ''
-              ? 'per-request'
-              : 'per-token',
+          editableModel.billingMode === 'per_second'
+            ? 'per_second'
+            : editableModel.billingMode === 'tiered_expr'
+              ? 'tiered_expr'
+              : editableModel.price && editableModel.price !== ''
+                ? 'per-request'
+                : 'per-token',
         billingExpr: editableModel.billingExpr,
+        perSecondExpr: editableModel.perSecondExpr,
         requestRuleExpr: editableModel.requestRuleExpr,
       })
       setEditorOpen(true)
@@ -425,6 +439,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       audioCompletionRatio,
       billingMode,
       billingExpr,
+      perSecondExpr,
       onChange,
     ]
   )
@@ -472,44 +487,63 @@ const ModelRatioVisualEditorComponent = forwardRef<
 
   const persistPricingData = useCallback(
     (data: ModelRatioData, targetNames: string[] = [data.name]) => {
-      const priceMap = safeJsonParse<Record<string, number>>(modelPrice, {
+      // Use getCurrentValues to get the latest form state, avoiding stale
+      // closure values from form.watch() that haven't been flushed yet.
+      const currentValues = getCurrentValues?.()
+      const effectiveModelPrice = currentValues?.modelPrice ?? modelPrice
+      const effectiveModelRatio = currentValues?.modelRatio ?? modelRatio
+      const effectiveCacheRatio = currentValues?.cacheRatio ?? cacheRatio
+      const effectiveCreateCacheRatio = currentValues?.createCacheRatio ?? createCacheRatio
+      const effectiveCompletionRatio = currentValues?.completionRatio ?? completionRatio
+      const effectiveImageRatio = currentValues?.imageRatio ?? imageRatio
+      const effectiveAudioRatio = currentValues?.audioRatio ?? audioRatio
+      const effectiveAudioCompletionRatio = currentValues?.audioCompletionRatio ?? audioCompletionRatio
+      const effectiveBillingMode = currentValues?.billingMode ?? billingMode
+      const effectiveBillingExpr = currentValues?.billingExpr ?? billingExpr
+      const effectivePerSecondExpr = currentValues?.perSecondExpr ?? perSecondExpr
+
+      const priceMap = safeJsonParse<Record<string, number>>(effectiveModelPrice, {
         fallback: {},
         silent: true,
       })
-      const ratioMap = safeJsonParse<Record<string, number>>(modelRatio, {
+      const ratioMap = safeJsonParse<Record<string, number>>(effectiveModelRatio, {
         fallback: {},
         silent: true,
       })
-      const cacheMap = safeJsonParse<Record<string, number>>(cacheRatio, {
+      const cacheMap = safeJsonParse<Record<string, number>>(effectiveCacheRatio, {
         fallback: {},
         silent: true,
       })
       const createCacheMap = safeJsonParse<Record<string, number>>(
-        createCacheRatio,
+        effectiveCreateCacheRatio,
         { fallback: {}, silent: true }
       )
       const completionMap = safeJsonParse<Record<string, number>>(
-        completionRatio,
+        effectiveCompletionRatio,
         { fallback: {}, silent: true }
       )
-      const imageMap = safeJsonParse<Record<string, number>>(imageRatio, {
+      const imageMap = safeJsonParse<Record<string, number>>(effectiveImageRatio, {
         fallback: {},
         silent: true,
       })
-      const audioMap = safeJsonParse<Record<string, number>>(audioRatio, {
+      const audioMap = safeJsonParse<Record<string, number>>(effectiveAudioRatio, {
         fallback: {},
         silent: true,
       })
       const audioCompletionMap = safeJsonParse<Record<string, number>>(
-        audioCompletionRatio,
+        effectiveAudioCompletionRatio,
         { fallback: {}, silent: true }
       )
       const billingModeMap = safeJsonParse<Record<string, string>>(
-        billingMode,
+        effectiveBillingMode,
         { fallback: {}, silent: true }
       )
       const billingExprMap = safeJsonParse<Record<string, string>>(
-        billingExpr,
+        effectiveBillingExpr,
+        { fallback: {}, silent: true }
+      )
+      const perSecondExprMap = safeJsonParse<Record<string, string>>(
+        effectivePerSecondExpr,
         { fallback: {}, silent: true }
       )
 
@@ -534,8 +568,26 @@ const ModelRatioVisualEditorComponent = forwardRef<
         delete audioCompletionMap[name]
         delete billingModeMap[name]
         delete billingExprMap[name]
+        delete perSecondExprMap[name]
 
-        if (data.billingMode === 'tiered_expr') {
+        if (data.billingMode === 'per_second') {
+          billingModeMap[name] = 'per_second'
+          if (data.perSecondExpr && data.perSecondExpr !== '') {
+            perSecondExprMap[name] = data.perSecondExpr
+          }
+          // Persist ratio/price values for per_second models as fallback during
+          // multi-instance sync delays. The backend's ModelPriceHelper checks
+          // billing_mode first, so these values are only consulted when
+          // billing_setting hasn't propagated yet.
+          setIfPresent(priceMap, name, data.price)
+          setIfPresent(ratioMap, name, data.ratio)
+          setIfPresent(cacheMap, name, data.cacheRatio)
+          setIfPresent(createCacheMap, name, data.createCacheRatio)
+          setIfPresent(completionMap, name, data.completionRatio)
+          setIfPresent(imageMap, name, data.imageRatio)
+          setIfPresent(audioMap, name, data.audioRatio)
+          setIfPresent(audioCompletionMap, name, data.audioCompletionRatio)
+        } else if (data.billingMode === 'tiered_expr') {
           const combined = combineBillingExpr(
             data.billingExpr || '',
             data.requestRuleExpr || ''
@@ -588,8 +640,13 @@ const ModelRatioVisualEditorComponent = forwardRef<
         'billing_setting.billing_expr',
         JSON.stringify(billingExprMap, null, 2)
       )
+      onChange(
+        'billing_setting.per_second_expr',
+        JSON.stringify(perSecondExprMap, null, 2)
+      )
     },
     [
+      getCurrentValues,
       modelPrice,
       modelRatio,
       cacheRatio,
@@ -600,6 +657,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       audioCompletionRatio,
       billingMode,
       billingExpr,
+      perSecondExpr,
       onChange,
     ]
   )
@@ -670,6 +728,11 @@ const ModelRatioVisualEditorComponent = forwardRef<
                     label: 'Expression',
                     value: 'tiered_expr',
                     count: modeCounts.tiered_expr,
+                  },
+                  {
+                    label: 'Per-second',
+                    value: 'per_second',
+                    count: modeCounts.per_second,
                   },
                 ],
               },
@@ -826,6 +889,7 @@ export const ModelRatioVisualEditor = memo(
       prevProps.audioCompletionRatio === nextProps.audioCompletionRatio &&
       prevProps.billingMode === nextProps.billingMode &&
       prevProps.billingExpr === nextProps.billingExpr &&
+      prevProps.perSecondExpr === nextProps.perSecondExpr &&
       prevProps.onChange === nextProps.onChange &&
       prevProps.onSave === nextProps.onSave &&
       prevProps.isSaving === nextProps.isSaving

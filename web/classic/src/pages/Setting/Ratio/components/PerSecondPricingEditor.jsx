@@ -32,9 +32,26 @@ function PerSecondPricingEditor({ model, onTiersChange, t }) {
 
   // Detect mode from existing tiers: if any tier has resolution, use resolution mode
   const hasResolution = tiers.some(tier => tier.resolution !== null && tier.resolution !== '');
-  const hasWidth = tiers.some(tier => tier.maxWidth !== null && tier.maxWidth !== '');
+  const hasWidth = tiers.some(tier => tier.maxWidth !== null && tier.maxWidth !== undefined && tier.maxWidth !== '');
   const defaultMode = hasResolution ? 'resolution' : 'width';
   const [tierMode, setTierMode] = useState(defaultMode);
+  const userSetModeRef = React.useRef(false);
+
+  // Sync tierMode when external tiers change (e.g. after loading saved data)
+  // Only auto-sync if user hasn't manually switched mode
+  React.useEffect(() => {
+    if (userSetModeRef.current) return;
+    const res = tiers.some(tier => tier.resolution !== null && tier.resolution !== '');
+    const w = tiers.some(tier => tier.maxWidth !== null && tier.maxWidth !== undefined && tier.maxWidth !== '');
+    if (res && tierMode !== 'resolution') {
+      setTierMode('resolution');
+    } else if (!res && w && tierMode !== 'width') {
+      setTierMode('width');
+    } else if (!res && !w && tierMode !== 'width') {
+      setTierMode('width');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tiers]);
 
   // Single base price — the last tier (or the only one if it has no condition)
   const baseTier = tiers.find((t) => {
@@ -60,12 +77,7 @@ function PerSecondPricingEditor({ model, onTiersChange, t }) {
 
   const updateTier = (index, field, value) => {
     const next = [...tiers];
-    // When switching mode, clear the other field
-    if (tierMode === 'resolution') {
-      next[index] = { ...next[index], [field]: value, maxWidth: null };
-    } else {
-      next[index] = { ...next[index], [field]: value, resolution: null };
-    }
+    next[index] = { ...next[index], [field]: value };
     onTiersChange(next);
   };
 
@@ -78,7 +90,7 @@ function PerSecondPricingEditor({ model, onTiersChange, t }) {
       tierData.maxWidth = '';
       tierData.resolution = null;
     }
-    onTiersChange([...tiers, tierData]);
+    onTiersChange([...tiers, { ...tierData }]);
   };
 
   const removeTier = (index) => {
@@ -139,7 +151,7 @@ function PerSecondPricingEditor({ model, onTiersChange, t }) {
               {/* Mode switch */}
               <div className='mb-3'>
                 <div className='text-xs font-medium text-gray-700 mb-1'>{t('匹配方式')}</div>
-                <RadioGroup value={tierMode} onChange={(e) => setTierMode(e.target.value)}>
+                <RadioGroup value={tierMode} onChange={(e) => { userSetModeRef.current = true; setTierMode(e.target.value); }}>
                   <Radio value='resolution'>{t('按分辨率字符串（如 1080p、720p）')}</Radio>
                   <Radio value='width'>{t('按宽度像素（如 width ≤ 1920）')}</Radio>
                 </RadioGroup>
@@ -190,7 +202,10 @@ function PerSecondPricingEditor({ model, onTiersChange, t }) {
                         <Input
                           value={matchValue ?? ''}
                           placeholder={isLast ? t('兜底价格') : t('例如 720、1080、1920')}
-                          onChange={(v) => updateTier(index, 'maxWidth', v)}
+                          onChange={(v) => {
+                            const num = v === '' ? '' : Number(v)
+                            updateTier(index, 'maxWidth', isNaN(num) ? '' : num)
+                          }}
                           size='small'
                           style={{ width: 160 }}
                           type='number'
