@@ -201,6 +201,37 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         const group = row.getValue('group') as string
         const ratio = group && group !== 'auto' ? groupRatios[group] : undefined
 
+        // Failover groups
+        if (apiKey.failover_groups && apiKey.failover_groups.length > 0) {
+          return (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className='inline-flex items-center gap-1.5 text-xs' />
+                }
+              >
+                {apiKey.failover_groups.map((g, i) => (
+                  <span key={g} className='inline-flex items-center gap-0.5'>
+                    {i > 0 && (
+                      <span className='text-muted-foreground text-[10px]'>
+                        &rarr;
+                      </span>
+                    )}
+                    <GroupBadge group={g} ratio={groupRatios[g]} />
+                  </span>
+                ))}
+              </TooltipTrigger>
+              <TooltipContent>
+                <span className='text-xs'>
+                  {t('Failover chain: {{groups}}', {
+                    groups: apiKey.failover_groups.join(' → '),
+                  })}
+                </span>
+              </TooltipContent>
+            </Tooltip>
+          )
+        }
+
         if (group === 'auto') {
           return (
             <Tooltip>

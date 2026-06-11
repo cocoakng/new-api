@@ -141,6 +141,20 @@ func Distribute() func(c *gin.Context) {
 						showGroup := usingGroup
 						if usingGroup == "auto" {
 							showGroup = fmt.Sprintf("auto(%s)", selectGroup)
+						} else if showGroup == "" {
+							// Failover mode: show the failover group chain
+							var fg []string
+							if val, exists := common.GetContextKey(c, constant.ContextKeyTokenFailoverGroups); exists {
+								switch g := val.(type) {
+								case model.FailoverGroupsArray:
+									fg = g
+								case []string:
+									fg = g
+								}
+							}
+							if len(fg) > 0 {
+								showGroup = strings.Join(fg, "→")
+							}
 						}
 						message := i18n.T(c, i18n.MsgDistributorGetChannelFailed, map[string]any{"Group": showGroup, "Model": modelRequest.Model, "Error": err.Error()})
 						// 如果错误，但是渠道不为空，说明是数据库一致性问题
@@ -152,7 +166,23 @@ func Distribute() func(c *gin.Context) {
 						return
 					}
 					if channel == nil {
-						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": usingGroup, "Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
+						showGroup := usingGroup
+						if showGroup == "" {
+							// Failover mode: show the failover group chain
+							var fg []string
+							if val, exists := common.GetContextKey(c, constant.ContextKeyTokenFailoverGroups); exists {
+								switch g := val.(type) {
+								case model.FailoverGroupsArray:
+									fg = g
+								case []string:
+									fg = g
+								}
+							}
+							if len(fg) > 0 {
+								showGroup = strings.Join(fg, "→")
+							}
+						}
+						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": showGroup, "Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
 						return
 					}
 				}

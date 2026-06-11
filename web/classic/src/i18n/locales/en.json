@@ -3834,5 +3834,6 @@
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
     "、": ", "
-  }
+  },
+  "失败时自动按顺序切换到下一分组": "Failover automatically switches to the next group on failure"
 }
