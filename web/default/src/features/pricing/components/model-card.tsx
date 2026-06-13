@@ -96,6 +96,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         customCurrencyExchangeRate,
       })
     : []
+  // Filter out fallback tiers for display; show all if only fallback exists
+  const perSecondConditional = perSecondSummary.filter((e) => !e.isFallback)
+  const perSecondDisplay = perSecondConditional.length > 0 ? perSecondConditional : perSecondSummary
 
   const primaryGroup = groups[0]
   const bottomTags = [...endpoints.slice(0, 2), ...tags.slice(0, 2)]
@@ -161,9 +164,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                     {t('Dynamic Pricing')}
                   </span>
                 )
-              ) : isPerSecond && perSecondSummary.length > 0 ? (
+              ) : isPerSecond && perSecondDisplay.length > 0 ? (
                 <>
-                  {perSecondSummary.map((entry) => (
+                  {perSecondDisplay.map((entry) => (
                     <span
                       key={entry.label}
                       className='text-muted-foreground whitespace-nowrap'

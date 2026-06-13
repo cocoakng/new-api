@@ -212,9 +212,9 @@ const buildPerSecondExprFromTiers = (tiers) => {
   };
 
   // Categorize tiers by condition type
-  const resTiers = validTiers.filter(t => t.resolution !== null && t.resolution !== '');
-  const widthTiers = validTiers.filter(t => t.resolution === null && t.maxWidth !== null && t.maxWidth !== undefined && t.maxWidth !== '');
-  const baseTiers = validTiers.filter(t => t.resolution === null && (t.maxWidth === null || t.maxWidth === undefined || t.maxWidth === ''));
+  const resTiers = validTiers.filter(t => t.resolution && t.resolution !== '');
+  const widthTiers = validTiers.filter(t => !t.resolution && t.maxWidth !== null && t.maxWidth !== undefined && t.maxWidth !== '');
+  const baseTiers = validTiers.filter(t => !t.resolution && (t.maxWidth === null || t.maxWidth === undefined || t.maxWidth === ''));
 
   // Sort within each category
   resTiers.sort((a, b) => parseResolutionNum(a.resolution) - parseResolutionNum(b.resolution));

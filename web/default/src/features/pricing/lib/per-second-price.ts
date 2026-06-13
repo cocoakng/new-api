@@ -46,6 +46,7 @@ export function parsePerSecondTiers(expr: string): Array<{
 /**
  * Format a per-second price summary for display.
  * Returns an array of display strings like "base $0.050/sec"
+ * Each entry includes `isFallback` to indicate if it's the catch-all base tier.
  */
 export function formatPerSecondPrice(
   expr: string,
@@ -57,8 +58,8 @@ export function formatPerSecondPrice(
     customCurrencySymbol?: string
     customCurrencyExchangeRate?: number
   }
-): Array<{ label: string; formatted: string }> {
-  const tiers = parsePerSecondTiers(expr)
+): Array<{ label: string; formatted: string; isFallback: boolean }> {
+  const tiers = parsePerSecondExprToTiers(expr)
   if (tiers.length === 0) return []
 
   const groupRatio = options?.groupRatio ?? 1
@@ -85,9 +86,11 @@ export function formatPerSecondPrice(
       const num = parseFloat(tier.pricePerSecond)
       if (!Number.isFinite(num)) return null
       const finalPrice = num * groupRatio * exchangeRate * priceRate
+      const isFallback = tier.resolution === null && tier.maxWidth === null
       return {
         label: tier.label,
         formatted: `${symbol}${finalPrice.toFixed(3)}`,
+        isFallback,
       }
     })
     .filter((t): t is NonNullable<typeof t> => t !== null)

@@ -91,6 +91,9 @@ export function PerSecondPricingEditor(props: PerSecondPricingEditorProps) {
             'Configure pricing for different resolution or width tiers. The last tier without a condition serves as the catch-all base price.'
           )}
         </FieldDescription>
+        <div className='mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-600 dark:border-red-800 dark:bg-red-950 dark:text-red-400'>
+          ⚠️ {t('不同渠道、不同模型的参数及传值方式有区别，请谨慎确认！')}
+        </div>
       </Field>
 
       {tiers.map((tier, index) => {

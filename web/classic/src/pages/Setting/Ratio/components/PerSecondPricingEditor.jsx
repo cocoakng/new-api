@@ -33,7 +33,7 @@ function PerSecondPricingEditor({ model, onTiersChange, t }) {
   // Detect mode from existing tiers: if any tier has resolution, use resolution mode
   const hasResolution = tiers.some(tier => tier.resolution !== null && tier.resolution !== '');
   const hasWidth = tiers.some(tier => tier.maxWidth !== null && tier.maxWidth !== undefined && tier.maxWidth !== '');
-  const defaultMode = hasResolution ? 'resolution' : 'width';
+  const defaultMode = hasWidth ? 'width' : (hasResolution ? 'resolution' : 'width');
   const [tierMode, setTierMode] = useState(defaultMode);
   const userSetModeRef = React.useRef(false);
 
@@ -127,6 +127,11 @@ function PerSecondPricingEditor({ model, onTiersChange, t }) {
         />
         <div className='mt-1 text-xs text-gray-500'>
           {t('如 $0.05/秒，生成 10 秒视频扣费 $0.50')}
+          {tiers.length > 1 && (
+            <span className='block mt-1' style={{ color: 'var(--semi-color-warning)' }}>
+              {t('若已配置分辨率阶梯定价，此价格为兜底价格（参数不匹配任何档位时生效）')}
+            </span>
+          )}
         </div>
       </div>
 
@@ -150,8 +155,24 @@ function PerSecondPricingEditor({ model, onTiersChange, t }) {
 
               {/* Mode switch */}
               <div className='mb-3'>
+                <div style={{ color: '#dc2626', fontWeight: 600, fontSize: 12, marginBottom: 8 }}>
+                  ⚠️ {t('不同渠道、不同模型的参数及传值方式有区别，请谨慎确认！')}
+                </div>
                 <div className='text-xs font-medium text-gray-700 mb-1'>{t('匹配方式')}</div>
-                <RadioGroup value={tierMode} onChange={(e) => { userSetModeRef.current = true; setTierMode(e.target.value); }}>
+                <RadioGroup value={tierMode} onChange={(e) => {
+                  userSetModeRef.current = true;
+                  const newMode = e.target.value;
+                  // Clear stale fields from the other mode to avoid misclassification
+                  const cleaned = tiers.map(t => {
+                    if (newMode === 'resolution') {
+                      return { ...t, maxWidth: null };
+                    } else {
+                      return { ...t, resolution: null };
+                    }
+                  });
+                  onTiersChange(cleaned);
+                  setTierMode(newMode);
+                }}>
                   <Radio value='resolution'>{t('按分辨率字符串（如 1080p、720p）')}</Radio>
                   <Radio value='width'>{t('按宽度像素（如 width ≤ 1920）')}</Radio>
                 </RadioGroup>

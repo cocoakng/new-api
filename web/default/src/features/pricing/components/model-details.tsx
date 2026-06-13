@@ -498,11 +498,13 @@ function PriceSection(props: {
       customCurrencyExchangeRate: props.customCurrencyExchangeRate,
     })
     if (perSecondSummary.length > 0) {
+      const conditionalTiers = perSecondSummary.filter((e) => !e.isFallback)
+      const fallbackTiers = perSecondSummary.filter((e) => e.isFallback)
       return (
         <section>
           <SectionTitle>{t('Base Price')}</SectionTitle>
           <div className='grid grid-cols-2 gap-2'>
-            {perSecondSummary.map((entry) => (
+            {conditionalTiers.map((entry) => (
               <div
                 key={entry.label}
                 className='bg-muted/20 rounded-lg border p-3'
@@ -513,6 +515,22 @@ function PriceSection(props: {
                 <div className='text-foreground mt-1 font-mono text-base font-semibold tabular-nums'>
                   {entry.formatted}
                   <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+                    / {t('second')}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {fallbackTiers.map((entry) => (
+              <div
+                key={entry.label}
+                className='bg-muted/10 rounded-lg border border-dashed p-3'
+              >
+                <div className='text-muted-foreground/60 text-xs'>
+                  {t('Other resolutions')}
+                </div>
+                <div className='text-muted-foreground/70 mt-1 font-mono text-base font-semibold tabular-nums'>
+                  {entry.formatted}
+                  <span className='text-muted-foreground/30 ml-1 text-xs font-normal'>
                     / {t('second')}
                   </span>
                 </div>

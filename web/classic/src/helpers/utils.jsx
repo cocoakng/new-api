@@ -1028,6 +1028,7 @@ export const formatPriceInfo = (priceData, t, quotaDisplayType = 'USD') => {
 };
 
 // 格式化按秒计费价格摘要（用于卡片视图）
+// Filter out fallback tiers (no condition) — only show conditional tiers.
 export const formatPerSecondPriceSummary = (billingExpr, t, groupRatio = 1) => {
   if (!billingExpr) return <span style={{ color: 'var(--semi-color-text-1)' }}>{t('按秒计费')}</span>;
 
@@ -1045,8 +1046,8 @@ export const formatPerSecondPriceSummary = (billingExpr, t, groupRatio = 1) => {
     }
   } catch (e) {}
 
-  // Parse per_second expression: v2:tier("label", duration * price)
-  const body = billingExpr.replace(/^v\d+:/, '');
+  // Parse per_second expression into tiers with condition info
+  const body = billingExpr.replace(/^v\d+:/, '').trim();
   const tierRegex = /tier\s*\(\s*"([^"]+)"\s*,\s*(.+?)\s*\)/g;
   const tiers = [];
   let match;
@@ -1056,14 +1057,52 @@ export const formatPerSecondPriceSummary = (billingExpr, t, groupRatio = 1) => {
     let price = '';
     const m = costExpr.match(/duration\s*\*\s*([\d.]+)/) || costExpr.match(/([\d.]+)\s*\*\s*duration/);
     if (m) price = m[1];
-    tiers.push({ label, price });
+    tiers.push({ label, price, resolution: null, maxWidth: null });
   }
 
   if (tiers.length === 0) return <span style={{ color: 'var(--semi-color-text-1)' }}>{t('按秒计费')}</span>;
 
+  // Parse resolution conditions: has(param("resolution"), "1080")
+  const resRegex = /has\s*\(\s*param\s*\(\s*"resolution"\s*\)\s*,\s*"([^"]+)"\s*\)/g;
+  let resMatch;
+  const resConditions = [];
+  while ((resMatch = resRegex.exec(body)) !== null) {
+    resConditions.push(resMatch[1]);
+  }
+
+  // Parse width conditions: param("width") <= N
+  const widthRegex = /param\s*\(\s*"width"\s*\)\s*([<>=]+)\s*(\d+)/g;
+  let widthMatch;
+  const widthConditions = [];
+  while ((widthMatch = widthRegex.exec(body)) !== null) {
+    widthConditions.push({ op: widthMatch[1], value: parseInt(widthMatch[2]) });
+  }
+
+  // Assign conditions to tiers in order
+  let resIdx = 0;
+  let widthIdx = 0;
+  for (let i = 0; i < tiers.length && resIdx < resConditions.length; i++) {
+    if (tiers[i].resolution === null && tiers[i].maxWidth === null) {
+      tiers[i].resolution = resConditions[resIdx];
+      resIdx++;
+    }
+  }
+  for (let i = 0; i < tiers.length && widthIdx < widthConditions.length; i++) {
+    if (tiers[i].resolution === null && tiers[i].maxWidth === null) {
+      const cond = widthConditions[widthIdx];
+      if (cond.op === '<=') tiers[i].maxWidth = cond.value;
+      else if (cond.op === '<') tiers[i].maxWidth = cond.value - 1;
+      widthIdx++;
+    }
+  }
+
+  // Filter out fallback tiers (no condition), fall back to all if none left
+  const conditionalTiers = tiers.filter(tier => tier.resolution !== null || tier.maxWidth !== null);
+  const displayTiers = conditionalTiers.length > 0 ? conditionalTiers : tiers;
+
   return (
     <>
-      {tiers.map((tier, idx) => {
+      {displayTiers.map((tier, idx) => {
         const num = parseFloat(tier.price) * groupRatio;
         return (
           <span key={idx} style={{ color: 'var(--semi-color-text-1)' }}>

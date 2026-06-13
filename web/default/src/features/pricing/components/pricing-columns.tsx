@@ -230,10 +230,13 @@ export function usePricingColumns(
             customCurrencyExchangeRate,
           })
           if (summary.length > 0) {
+            // Filter out fallback tiers; show all if only fallback exists
+            const conditionalTiers = summary.filter((e) => !e.isFallback)
+            const displayTiers = conditionalTiers.length > 0 ? conditionalTiers : summary
             return (
               <div className='min-w-[160px]'>
                 <span className='font-mono text-sm tabular-nums'>
-                  {summary.map((entry, index) => (
+                  {displayTiers.map((entry, index) => (
                     <span key={entry.label}>
                       {index > 0 && (
                         <span className='text-muted-foreground/40 mx-1'>/</span>
