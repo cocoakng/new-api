@@ -1092,3 +1092,113 @@ func BenchmarkExprRunCached(b *testing.B) {
 		billingexpr.RunExpr(benchComplexExpr, params)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Duration variable tests — per-second billing
+// ---------------------------------------------------------------------------
+
+func TestDuration_Basic(t *testing.T) {
+	exprStr := `v2:tier("base", duration * 0.05)`
+	cost, trace, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{Duration: 60})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := 60 * 0.05
+	if math.Abs(cost-want) > 1e-6 {
+		t.Errorf("cost = %f, want %f", cost, want)
+	}
+	if trace.MatchedTier != "base" {
+		t.Errorf("tier = %q, want base", trace.MatchedTier)
+	}
+}
+
+func TestDuration_WithResolutionTiers(t *testing.T) {
+	exprStr := `v2:param("width") <= 720 ? tier("sd", duration * 0.02) : tier("hd", duration * 0.05)`
+	cost, trace, err := billingexpr.RunExprWithRequest(
+		exprStr,
+		billingexpr.TokenParams{Duration: 30},
+		billingexpr.RequestInput{Body: []byte(`{"width":1280}`)},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := 30 * 0.05
+	if math.Abs(cost-want) > 1e-6 {
+		t.Errorf("cost = %f, want %f", cost, want)
+	}
+	if trace.MatchedTier != "hd" {
+		t.Errorf("tier = %q, want hd", trace.MatchedTier)
+	}
+}
+
+func TestDuration_V2QuotaConversion(t *testing.T) {
+	exprStr := `v2:tier("base", duration * 0.1)`
+	snap := &billingexpr.BillingSnapshot{
+		BillingMode:  "per_second",
+		ExprString:   exprStr,
+		ExprHash:     billingexpr.ExprHashString(exprStr),
+		GroupRatio:   1.0,
+		QuotaPerUnit: 500_000,
+		ExprVersion:  billingexpr.ExprVersion(exprStr),
+	}
+	result, err := billingexpr.ComputeTieredQuota(snap, billingexpr.TokenParams{Duration: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// v2: 10 * 0.1 = 1.0; quota = 1.0 * 500_000 = 500_000
+	want := 500000
+	if result.ActualQuotaAfterGroup != want {
+		t.Errorf("quota = %d, want %d", result.ActualQuotaAfterGroup, want)
+	}
+}
+
+func TestDuration_ZeroDuration(t *testing.T) {
+	exprStr := `v2:tier("base", duration * 0.05)`
+	cost, _, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{Duration: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cost != 0 {
+		t.Errorf("cost = %f, want 0", cost)
+	}
+}
+
+func TestDuration_V1VsV2Conversion(t *testing.T) {
+	// v1 uses /1M division
+	exprV1 := `tier("base", duration * 1000000)` // $1M per second effectively
+	snapV1 := &billingexpr.BillingSnapshot{
+		BillingMode:  "tiered_expr",
+		ExprString:   exprV1,
+		ExprHash:     billingexpr.ExprHashString(exprV1),
+		GroupRatio:   1.0,
+		QuotaPerUnit: 500_000,
+		ExprVersion:  billingexpr.ExprVersion(exprV1),
+	}
+	resultV1, err := billingexpr.ComputeTieredQuota(snapV1, billingexpr.TokenParams{Duration: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// v1: 1 * 1000000 / 1M * 500K = 500000
+	if resultV1.ActualQuotaAfterGroup != 500000 {
+		t.Errorf("v1 quota = %d, want 500000", resultV1.ActualQuotaAfterGroup)
+	}
+
+	// v2 uses direct multiplier
+	exprV2 := `v2:tier("base", duration * 1.0)`
+	snapV2 := &billingexpr.BillingSnapshot{
+		BillingMode:  "per_second",
+		ExprString:   exprV2,
+		ExprHash:     billingexpr.ExprHashString(exprV2),
+		GroupRatio:   1.0,
+		QuotaPerUnit: 500_000,
+		ExprVersion:  billingexpr.ExprVersion(exprV2),
+	}
+	resultV2, err := billingexpr.ComputeTieredQuota(snapV2, billingexpr.TokenParams{Duration: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// v2: 1 * 1.0 * 500K = 500000
+	if resultV2.ActualQuotaAfterGroup != 500000 {
+		t.Errorf("v2 quota = %d, want 500000", resultV2.ActualQuotaAfterGroup)
+	}
+}

@@ -11,32 +11,31 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 func TestMain(m *testing.M) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		panic("failed to open test db: " + err.Error())
+	// Use InitDB path so that model.initCol() is invoked via chooseDB defer,
+	// ensuring commonKeyCol/commonGroupCol are properly set for SQLite.
+	common.SQLitePath = ":memory:"
+	common.IsMasterNode = false
+	if err := model.InitDB(); err != nil {
+		panic("failed to init test db: " + err.Error())
 	}
-	sqlDB, err := db.DB()
+	sqlDB, err := model.DB.DB()
 	if err != nil {
 		panic("failed to get sql.DB: " + err.Error())
 	}
 	sqlDB.SetMaxOpenConns(1)
 
-	model.DB = db
-	model.LOG_DB = db
+	model.LOG_DB = model.DB
 
-	common.UsingSQLite = true
 	common.RedisEnabled = false
 	common.BatchUpdateEnabled = false
 	common.LogConsumeEnabled = true
 
-	if err := db.AutoMigrate(
+	if err := model.DB.AutoMigrate(
 		&model.Task{},
 		&model.User{},
 		&model.Token{},

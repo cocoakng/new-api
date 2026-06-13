@@ -75,11 +75,11 @@ func runProgram(prog *vm.Program, params TokenParams, request RequestInput) (flo
 		"param": func(path string) interface{} {
 			path = strings.TrimSpace(path)
 			if path == "" || len(request.Body) == 0 {
-				return ""
+				return nil
 			}
 			result := gjson.GetBytes(request.Body, path)
 			if !result.Exists() {
-				return ""
+				return nil
 			}
 			v := result.Value()
 			// Treat missing numeric fields as 0 to avoid nil comparison errors

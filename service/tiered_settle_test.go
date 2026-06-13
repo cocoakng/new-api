@@ -828,3 +828,91 @@ func BenchmarkRatioBilling_Parallel(b *testing.B) {
 		}
 	})
 }
+
+// ---------------------------------------------------------------------------
+// Duration / per-second billing tests
+// ---------------------------------------------------------------------------
+
+func TestBuildTieredTokenParams_DurationPassedThrough(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:     1000,
+		CompletionTokens: 500,
+		Duration:         120,
+	}
+	expr := `tier("base", p * 2 + c * 10)`
+	usedVars := billingexpr.UsedVars(expr)
+	params := BuildTieredTokenParams(usage, false, usedVars)
+
+	if params.Duration != 120 {
+		t.Fatalf("Duration = %f, want 120", params.Duration)
+	}
+}
+
+func TestBuildTieredTokenParams_DurationZero(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:     1000,
+		CompletionTokens: 500,
+		Duration:         0,
+	}
+	expr := `tier("base", p * 2 + c * 10)`
+	usedVars := billingexpr.UsedVars(expr)
+	params := BuildTieredTokenParams(usage, false, usedVars)
+
+	if params.Duration != 0 {
+		t.Fatalf("Duration = %f, want 0", params.Duration)
+	}
+}
+
+func TestTryTieredSettle_PerSecondMode_ReturnsFalse(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
+			BillingMode: "per_second",
+			ExprString:  `v2:tier("base", duration * 0.05)`,
+			ExprHash:    billingexpr.ExprHashString(`v2:tier("base", duration * 0.05)`),
+			GroupRatio:  1.0,
+		},
+	}
+
+	ok, _, _ := TryTieredSettle(info, billingexpr.TokenParams{Duration: 60})
+	if ok {
+		t.Fatal("expected TryTieredSettle to return false for per_second billing mode")
+	}
+}
+
+func TestTryTieredSettle_PerSecondModeWithNilSnapshot(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		TieredBillingSnapshot: nil,
+	}
+
+	ok, _, _ := TryTieredSettle(info, billingexpr.TokenParams{Duration: 60})
+	if ok {
+		t.Fatal("expected TryTieredSettle to return false when snapshot is nil")
+	}
+}
+
+func TestBuildTieredTokenParams_DurationWithTokenNormalization(t *testing.T) {
+	// Ensure Duration is independent of token normalization logic
+	usage := &dto.Usage{
+		PromptTokens:     1000,
+		CompletionTokens: 500,
+		Duration:         90,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 200,
+			TextTokens:   800,
+		},
+	}
+	expr := `tier("base", p * 2 + c * 10 + cr * 0.5)`
+	usedVars := billingexpr.UsedVars(expr)
+	params := BuildTieredTokenParams(usage, false, usedVars)
+
+	if params.Duration != 90 {
+		t.Fatalf("Duration = %f, want 90 (should not be affected by token normalization)", params.Duration)
+	}
+	// Verify token normalization still works
+	if params.P != 800 {
+		t.Fatalf("P = %f, want 800 (token normalization should still apply)", params.P)
+	}
+	if params.CR != 200 {
+		t.Fatalf("CR = %f, want 200", params.CR)
+	}
+}
