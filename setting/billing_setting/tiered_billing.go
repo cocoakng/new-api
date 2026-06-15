@@ -12,19 +12,29 @@ const (
 	BillingModeRatio      = "ratio"
 	BillingModeTieredExpr = "tiered_expr"
 	BillingModePerSecond  = "per_second"
+	BillingModePerCall    = "per_call"
 	BillingModeField      = "billing_mode"
 	BillingExprField      = "billing_expr"
 	PerSecondPriceField   = "per_second_price"
 	PerSecondExprField    = "per_second_expr"
+	PerCallMatrixField    = "per_call_matrix"
 )
+
+// PerCallMatrixData stores a 2D pricing matrix: resolutions × durations → fixed price per call
+type PerCallMatrixData struct {
+	Resolutions []string    `json:"resolutions"` // e.g. ["720p", "1080p"]
+	Durations   []int       `json:"durations"`   // e.g. [4, 6, 10]
+	Prices      [][]float64 `json:"prices"`      // prices[row][col], row=resolution, col=duration
+}
 
 // BillingSetting is managed by config.GlobalConfig.Register.
 // DB keys: billing_setting.billing_mode, billing_setting.billing_expr
 type BillingSetting struct {
-	BillingMode    map[string]string  `json:"billing_mode"`
-	BillingExpr    map[string]string  `json:"billing_expr"`
-	PerSecondPrice map[string]float64 `json:"per_second_price"`
-	PerSecondExpr  map[string]string  `json:"per_second_expr"`
+	BillingMode    map[string]string            `json:"billing_mode"`
+	BillingExpr    map[string]string            `json:"billing_expr"`
+	PerSecondPrice map[string]float64           `json:"per_second_price"`
+	PerSecondExpr  map[string]string            `json:"per_second_expr"`
+	PerCallMatrix  map[string]PerCallMatrixData `json:"per_call_matrix"`
 }
 
 var billingSetting = BillingSetting{
@@ -32,6 +42,7 @@ var billingSetting = BillingSetting{
 	BillingExpr:    make(map[string]string),
 	PerSecondPrice: make(map[string]float64),
 	PerSecondExpr:  make(map[string]string),
+	PerCallMatrix:  make(map[string]PerCallMatrixData),
 }
 
 func init() {
@@ -64,6 +75,15 @@ func GetPerSecondExpr(model string) (string, bool) {
 	return expr, ok
 }
 
+func GetPerCallMatrix(model string) (PerCallMatrixData, bool) {
+	data, ok := billingSetting.PerCallMatrix[model]
+	return data, ok
+}
+
+func GetPerCallMatrixCopy() map[string]PerCallMatrixData {
+	return lo.Assign(billingSetting.PerCallMatrix)
+}
+
 func GetBillingModeCopy() map[string]string {
 	return lo.Assign(billingSetting.BillingMode)
 }
@@ -73,7 +93,7 @@ func GetBillingExprCopy() map[string]string {
 }
 
 func GetPricingSyncData(base map[string]any) map[string]any {
-	extra := make(map[string]any, 4)
+	extra := make(map[string]any, 5)
 	if modes := GetBillingModeCopy(); len(modes) > 0 {
 		extra[BillingModeField] = modes
 	}
@@ -85,6 +105,9 @@ func GetPricingSyncData(base map[string]any) map[string]any {
 	}
 	if exprs := billingSetting.PerSecondExpr; len(exprs) > 0 {
 		extra[PerSecondExprField] = lo.Assign(exprs)
+	}
+	if matrices := GetPerCallMatrixCopy(); len(matrices) > 0 {
+		extra[PerCallMatrixField] = lo.Assign(matrices)
 	}
 	return lo.Assign(base, extra)
 }
@@ -116,6 +139,9 @@ func smokeTestExpr(exprStr string) error {
 		{Body: []byte(`{"duration":0}`)},
 		{Body: []byte(`{"duration":5,"width":1280,"height":720}`)},
 		{Body: []byte(`{"duration":60,"width":3840,"height":2160}`)},
+		// per_call expressions use resolution + duration
+		{Body: []byte(`{"duration":4,"resolution":"720p"}`)},
+		{Body: []byte(`{"duration":10,"resolution":"1080p"}`)},
 	}
 
 	for _, v := range vectors {

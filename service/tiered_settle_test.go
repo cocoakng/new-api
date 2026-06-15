@@ -863,19 +863,43 @@ func TestBuildTieredTokenParams_DurationZero(t *testing.T) {
 	}
 }
 
-func TestTryTieredSettle_PerSecondMode_ReturnsFalse(t *testing.T) {
+func TestTryTieredSettle_PerSecondMode_ReturnsTrue(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
-			BillingMode: "per_second",
-			ExprString:  `v2:tier("base", duration * 0.05)`,
-			ExprHash:    billingexpr.ExprHashString(`v2:tier("base", duration * 0.05)`),
-			GroupRatio:  1.0,
+			BillingMode:              "per_second",
+			ExprString:               `v2:tier("base", duration * 0.05)`,
+			ExprHash:                 billingexpr.ExprHashString(`v2:tier("base", duration * 0.05)`),
+			GroupRatio:               1.0,
+			EstimatedQuotaAfterGroup: 3000000,
 		},
 	}
 
-	ok, _, _ := TryTieredSettle(info, billingexpr.TokenParams{Duration: 60})
-	if ok {
-		t.Fatal("expected TryTieredSettle to return false for per_second billing mode")
+	ok, quota, _ := TryTieredSettle(info, billingexpr.TokenParams{Duration: 60})
+	if !ok {
+		t.Fatal("expected TryTieredSettle to return true for per_second billing mode")
+	}
+	if quota != 3000000 {
+		t.Fatalf("quota = %d, want 3000000", quota)
+	}
+}
+
+func TestTryTieredSettle_PerCallMode_ReturnsTrue(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
+			BillingMode:              "per_call",
+			ExprString:               `per_call_matrix:720p_8s`,
+			ExprHash:                 billingexpr.ExprHashString(`per_call_matrix:720p_8s`),
+			GroupRatio:               1.0,
+			EstimatedQuotaAfterGroup: 500000,
+		},
+	}
+
+	ok, quota, _ := TryTieredSettle(info, billingexpr.TokenParams{})
+	if !ok {
+		t.Fatal("expected TryTieredSettle to return true for per_call billing mode")
+	}
+	if quota != 500000 {
+		t.Fatalf("quota = %d, want 500000", quota)
 	}
 }
 

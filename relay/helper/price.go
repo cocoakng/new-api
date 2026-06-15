@@ -16,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 func modelPriceNotConfiguredError(modelName string, userId int) error {
@@ -78,6 +79,11 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	// Check if this model uses per_second billing
 	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModePerSecond {
 		return modelPriceHelperSecond(c, info, promptTokens, meta, groupRatioInfo)
+	}
+
+	// Check if this model uses per_call billing
+	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModePerCall {
+		return modelPriceHelperPerCallMatrix(c, info, groupRatioInfo)
 	}
 
 	var preConsumedQuota int
@@ -181,6 +187,11 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 	// Check if this model uses per_second billing
 	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModePerSecond {
 		return modelPriceHelperPerCallSecond(c, info, groupRatioInfo)
+	}
+
+	// Check if this model uses per_call billing
+	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModePerCall {
+		return modelPriceHelperPerCallMatrix(c, info, groupRatioInfo)
 	}
 
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
@@ -407,11 +418,28 @@ func modelPriceHelperSecond(c *gin.Context, info *relaycommon.RelayInfo, promptT
 		return types.PriceData{}, err
 	}
 
-	// Extract duration from request body
+	// Extract duration and normalize request body for param() compatibility.
+	// Different models use different field names:
+	//   duration: "duration", "seconds", "metadata.durationSeconds"
+	//   resolution: "resolution", "metadata.resolution"
 	var duration float64
 	if len(requestInput.Body) > 0 {
 		if r := gjson.GetBytes(requestInput.Body, "duration"); r.Exists() {
 			duration = r.Float()
+		} else if r := gjson.GetBytes(requestInput.Body, "metadata.durationSeconds"); r.Exists() {
+			duration = r.Float()
+			requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "duration", duration)
+		} else if r := gjson.GetBytes(requestInput.Body, "seconds"); r.Exists() {
+			duration = r.Float()
+			requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "duration", duration)
+		}
+
+		// Normalize resolution to root level
+		if r := gjson.GetBytes(requestInput.Body, "resolution"); r.Exists() {
+			_ = r // resolution already at root
+		} else if r := gjson.GetBytes(requestInput.Body, "metadata.resolution"); r.Exists() && r.String() != "" {
+			resVal := strings.ToLower(strings.TrimSpace(r.String()))
+			requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", resVal)
 		}
 	}
 
@@ -483,11 +511,23 @@ func modelPriceHelperPerCallSecond(c *gin.Context, info *relaycommon.RelayInfo, 
 		return types.PriceData{}, err
 	}
 
-	// Extract duration from request body
+	// Extract duration and normalize request body for param() compatibility.
 	var duration float64
 	if len(requestInput.Body) > 0 {
 		if r := gjson.GetBytes(requestInput.Body, "duration"); r.Exists() {
 			duration = r.Float()
+		} else if r := gjson.GetBytes(requestInput.Body, "metadata.durationSeconds"); r.Exists() {
+			duration = r.Float()
+			requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "duration", duration)
+		} else if r := gjson.GetBytes(requestInput.Body, "seconds"); r.Exists() {
+			duration = r.Float()
+			requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "duration", duration)
+		}
+
+		// Normalize resolution to root level
+		if r := gjson.GetBytes(requestInput.Body, "metadata.resolution"); r.Exists() && r.String() != "" {
+			resVal := strings.ToLower(strings.TrimSpace(r.String()))
+			requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", resVal)
 		}
 	}
 
@@ -540,6 +580,141 @@ func modelPriceHelperPerCallSecond(c *gin.Context, info *relaycommon.RelayInfo, 
 	}
 
 	logger.LogDebug(c, "model_price_helper_per_call_second result: model=%s preConsume=%d quotaBeforeGroup=%.2f groupRatio=%.2f duration=%.0f tier=%s", info.OriginModelName, preConsumedQuota, quotaBeforeGroup, groupRatioInfo.GroupRatio, duration, trace.MatchedTier)
+
+	info.PriceData = priceData
+	return priceData, nil
+}
+
+// modelPriceHelperPerCallMatrix handles per_call billing with a 2D resolution × duration matrix.
+// It extracts resolution and duration from the request body, looks up the fixed price from the matrix,
+// and calculates the pre-consume quota.
+func modelPriceHelperPerCallMatrix(c *gin.Context, info *relaycommon.RelayInfo, groupRatioInfo types.GroupRatioInfo) (types.PriceData, error) {
+	matrix, ok := billing_setting.GetPerCallMatrix(info.OriginModelName)
+	if !ok || len(matrix.Resolutions) == 0 || len(matrix.Durations) == 0 {
+		return types.PriceData{}, fmt.Errorf("model %s is configured as per_call but has no pricing matrix", info.OriginModelName)
+	}
+
+	requestInput, err := ResolveIncomingBillingExprRequestInput(c, info)
+	if err != nil {
+		return types.PriceData{}, err
+	}
+
+	// Extract resolution and duration from request body
+	var resolution string
+	var duration int
+	if len(requestInput.Body) > 0 {
+		// Check root-level resolution first, then metadata.resolution
+		if r := gjson.GetBytes(requestInput.Body, "resolution"); r.Exists() {
+			resolution = strings.ToLower(strings.TrimSpace(r.String()))
+		} else if r := gjson.GetBytes(requestInput.Body, "metadata.resolution"); r.Exists() {
+			resolution = strings.ToLower(strings.TrimSpace(r.String()))
+		}
+		// Check root-level duration first, then metadata.durationSeconds, then seconds (Grok)
+		if r := gjson.GetBytes(requestInput.Body, "duration"); r.Exists() {
+			duration = int(r.Float())
+		} else if r := gjson.GetBytes(requestInput.Body, "metadata.durationSeconds"); r.Exists() {
+			duration = int(r.Float())
+		} else if r := gjson.GetBytes(requestInput.Body, "seconds"); r.Exists() {
+			duration = int(r.Float())
+		}
+	}
+
+	// Look up price from matrix: find row by resolution, column by duration
+	// If resolution is empty and matrix has exactly one row, match it (for models without resolution)
+	// If duration is 0 and matrix has exactly one column, match it (for models without duration)
+	// "any" resolution acts as a wildcard fallback.
+	var price float64
+	found := false
+	resMatched := false
+	anyFallbackIdx := -1
+	for ri, res := range matrix.Resolutions {
+		if res == "any" {
+			anyFallbackIdx = ri
+		}
+		if resolution == "" && len(matrix.Resolutions) == 1 {
+			resMatched = true // Single-row matrix: always match
+		} else if strings.ToLower(res) == resolution {
+			resMatched = true
+		}
+		if resMatched {
+			for ci, dur := range matrix.Durations {
+				if duration == 0 && len(matrix.Durations) == 1 {
+					// Single-column matrix: match when no duration in request
+					price = matrix.Prices[ri][ci]
+					found = true
+					break
+				}
+				if dur == duration {
+					price = matrix.Prices[ri][ci]
+					found = true
+					break
+				}
+			}
+			break
+		}
+	}
+
+	// If no exact match found but there's an "any" row, try matching it
+	if !found && anyFallbackIdx >= 0 {
+		ri := anyFallbackIdx
+		for ci, dur := range matrix.Durations {
+			if duration == 0 && len(matrix.Durations) == 1 {
+				price = matrix.Prices[ri][ci]
+				found = true
+				break
+			}
+			if dur == duration {
+				price = matrix.Prices[ri][ci]
+				found = true
+				break
+			}
+		}
+	}
+
+	if !found {
+		return types.PriceData{}, fmt.Errorf(
+			"model %s: no price found for resolution=%q, duration=%d. Available: resolutions=%v, durations=%v",
+			info.OriginModelName, resolution, duration, matrix.Resolutions, matrix.Durations,
+		)
+	}
+
+	quotaBeforeGroup := price * common.QuotaPerUnit
+	preConsumedQuota := billingexpr.QuotaRound(quotaBeforeGroup * groupRatioInfo.GroupRatio)
+
+	freeModel := false
+	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+		if groupRatioInfo.GroupRatio == 0 || price == 0 {
+			preConsumedQuota = 0
+			freeModel = true
+		}
+	}
+
+	tierLabel := fmt.Sprintf("%s_%ds", resolution, duration)
+	exprStr := fmt.Sprintf("per_call_matrix:%s", tierLabel)
+	exprHash := billingexpr.ExprHashString(exprStr)
+	snapshot := &billingexpr.BillingSnapshot{
+		BillingMode:               billing_setting.BillingModePerCall,
+		ModelName:                 info.OriginModelName,
+		ExprString:                exprStr,
+		ExprHash:                  exprHash,
+		GroupRatio:                groupRatioInfo.GroupRatio,
+		EstimatedQuotaBeforeGroup: quotaBeforeGroup,
+		EstimatedQuotaAfterGroup:  preConsumedQuota,
+		EstimatedTier:             tierLabel,
+		QuotaPerUnit:              common.QuotaPerUnit,
+		ExprVersion:               2,
+	}
+	info.TieredBillingSnapshot = snapshot
+	info.BillingRequestInput = &requestInput
+
+	priceData := types.PriceData{
+		FreeModel:         freeModel,
+		GroupRatioInfo:    groupRatioInfo,
+		Quota:             preConsumedQuota,
+		QuotaToPreConsume: preConsumedQuota,
+	}
+
+	logger.LogDebug(c, "model_price_helper_per_call_matrix result: model=%s preConsume=%d quotaBeforeGroup=%.2f groupRatio=%.2f resolution=%s duration=%d price=%.4f tier=%s", info.OriginModelName, preConsumedQuota, quotaBeforeGroup, groupRatioInfo.GroupRatio, resolution, duration, price, tierLabel)
 
 	info.PriceData = priceData
 	return priceData, nil

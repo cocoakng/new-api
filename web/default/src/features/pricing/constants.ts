@@ -49,6 +49,7 @@ export const QUOTA_TYPES = {
   TOKEN: 'token',
   REQUEST: 'request',
   PER_SECOND: 'per-second',
+  PER_CALL: 'per-call',
 } as const
 
 export type QuotaTypeOption = (typeof QUOTA_TYPES)[keyof typeof QUOTA_TYPES]
@@ -62,6 +63,7 @@ export function getQuotaTypeLabels(
     [QUOTA_TYPES.TOKEN]: t('Token-based'),
     [QUOTA_TYPES.REQUEST]: t('Per Request'),
     [QUOTA_TYPES.PER_SECOND]: t('Pay per second'),
+    [QUOTA_TYPES.PER_CALL]: t('Pay per call'),
   }
 }
 
@@ -124,6 +126,7 @@ export const QUOTA_TYPE_VALUES = {
   TOKEN: 0,
   REQUEST: 1,
   PER_SECOND: 2,
+  PER_CALL: 3,
 } as const
 
 /** Token unit divisors */

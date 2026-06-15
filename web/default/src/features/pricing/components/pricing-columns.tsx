@@ -141,10 +141,25 @@ export function usePricingColumns(
         const model = row.original
         const isTokenBased = row.original.quota_type === QUOTA_TYPE_VALUES.TOKEN
         const isPerSecond = row.original.quota_type === QUOTA_TYPE_VALUES.PER_SECOND
+        const isPerCall = row.original.quota_type === QUOTA_TYPE_VALUES.PER_CALL
+        const label = isPerSecond
+          ? t('Per second')
+          : isPerCall
+            ? t('Per call')
+            : isTokenBased
+              ? t('Token')
+              : t('Request')
+        const variant = isPerSecond
+          ? 'warning'
+          : isPerCall
+            ? 'success'
+            : isTokenBased
+              ? 'info'
+              : 'neutral'
         return (
           <StatusBadge
-            label={isPerSecond ? t('Per second') : isTokenBased ? t('Token') : t('Request')}
-            variant={isPerSecond ? 'warning' : isTokenBased ? 'info' : 'neutral'}
+            label={label}
+            variant={variant}
             copyable={false}
           />
         )
@@ -251,6 +266,30 @@ export function usePricingColumns(
               </div>
             )
           }
+        }
+
+        const isPerCall =
+          model.billing_mode === 'per_call' && model.per_call_matrix
+        if (isPerCall && model.per_call_matrix) {
+          const matrix = model.per_call_matrix
+          // Show first resolution row: price for shortest duration as summary
+          const firstPrice = matrix.prices[0]?.[0] ?? 0
+          const displayCny =
+            quotaDisplayType === 'CNY'
+              ? firstPrice * (usdExchangeRate || 7)
+              : firstPrice
+          const symbol = quotaDisplayType === 'CNY' ? '¥' : '$'
+          return (
+            <div className='min-w-[120px]'>
+              <span className='font-mono text-sm tabular-nums'>
+                {symbol}
+                {displayCny.toFixed(2)}
+              </span>
+              <div className='text-muted-foreground/50 text-[10px]'>
+                / {t('call')} · {matrix.resolutions.length}×{matrix.durations.length}
+              </div>
+            </div>
+          )
         }
 
         if (isTokenBased) {

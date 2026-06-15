@@ -28,6 +28,7 @@ import ModelEndpoints from './components/ModelEndpoints';
 import ModelPricingTable from './components/ModelPricingTable';
 import DynamicPricingBreakdown from './components/DynamicPricingBreakdown';
 import PerSecondPricingBreakdown from './components/PerSecondPricingBreakdown';
+import PerCallPricingBreakdown from './components/PerCallPricingBreakdown';
 
 const { Text } = Typography;
 
@@ -113,6 +114,18 @@ const ModelDetailSideSheet = ({
                 <div style={{ padding: '0 24px' }}>
                   <PerSecondPricingBreakdown
                     billingExpr={modelData.billing_expr}
+                    groupRatio={groupRatio}
+                    t={t}
+                  />
+                </div>
+              </>
+            )}
+            {modelData.billing_mode === 'per_call' && modelData.per_call_matrix && (
+              <>
+                <Divider margin={16} />
+                <div style={{ padding: '0 24px' }}>
+                  <PerCallPricingBreakdown
+                    perCallMatrix={modelData.per_call_matrix}
                     groupRatio={groupRatio}
                     t={t}
                   />

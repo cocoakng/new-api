@@ -309,7 +309,9 @@ function ModelHeader(props: { model: PricingModel }) {
             ? t('Token-based')
             : model.quota_type === QUOTA_TYPE_VALUES.PER_SECOND
               ? t('Pay per second')
-              : t('Per Request')}
+              : model.quota_type === QUOTA_TYPE_VALUES.PER_CALL
+                ? t('Pay per call')
+                : t('Per Request')}
         </span>
         {model.billing_mode === 'tiered_expr' && model.billing_expr && (
           <>
@@ -318,6 +320,14 @@ function ModelHeader(props: { model: PricingModel }) {
               {isSpecialExpression
                 ? t('Special billing expression')
                 : t('Dynamic Pricing')}
+            </span>
+          </>
+        )}
+        {model.billing_mode === 'per_call' && model.per_call_matrix && (
+          <>
+            <span className='text-muted-foreground/30'>·</span>
+            <span className='rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'>
+              {t('Matrix Pricing')}
             </span>
           </>
         )}
@@ -540,6 +550,74 @@ function PriceSection(props: {
         </section>
       )
     }
+  }
+
+  const isPerCall =
+    props.model.billing_mode === 'per_call' && props.model.per_call_matrix
+  if (isPerCall && props.model.per_call_matrix) {
+    const matrix = props.model.per_call_matrix
+    const groupRatio = getDynamicDisplayGroupRatio(props.model)
+    const singleRatio = groupRatio ? Object.values(groupRatio)[0] ?? 1 : 1
+    // Placeholder resolution names that should be hidden in display
+    const placeholderResolutions = new Set(['default', 'any', 'all', 'standard', '通用', '默认'])
+    const showResolution = !(matrix.resolutions.length === 1 && placeholderResolutions.has(matrix.resolutions[0]))
+
+    return (
+      <section>
+        <SectionTitle>{t('Base Price')}</SectionTitle>
+        <div className='overflow-x-auto'>
+          <Table className='text-sm'>
+            <TableHeader>
+              <TableRow className='hover:bg-transparent'>
+                <TableHead className='text-muted-foreground py-2 font-medium'>
+                  {showResolution ? t('Resolution') : t('Pricing')}
+                </TableHead>
+                {matrix.durations.map((d) => (
+                  <TableHead
+                    key={d}
+                    className='text-muted-foreground py-2 text-right font-medium'
+                  >
+                    {d}s
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {matrix.resolutions.map((res, ri) => (
+                <TableRow key={res} className='hover:bg-transparent'>
+                  <TableCell className='py-2.5 font-medium'>{showResolution ? res : '-'}</TableCell>
+                  {matrix.durations.map((_, ci) => {
+                    const price = matrix.prices[ri]?.[ci] ?? 0
+                    const displayPrice = singleRatio ? price * singleRatio : price
+                    const displayCny =
+                      props.quotaDisplayType === 'CNY'
+                        ? displayPrice * (props.usdExchangeRate || 7)
+                        : displayPrice
+                    const symbol =
+                      props.quotaDisplayType === 'CNY' ? '¥' : '$'
+                    return (
+                      <TableCell
+                        key={`${res}-${matrix.durations[ci]}`}
+                        className='py-2.5 text-right font-mono font-semibold'
+                      >
+                        {symbol}
+                        {displayCny.toFixed(2)}
+                        <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+                          / {t('call')}
+                        </span>
+                      </TableCell>
+                    )
+                  })}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        <p className='text-muted-foreground mt-2 text-xs'>
+          {t('Price is fixed per call based on resolution and duration')}
+        </p>
+      </section>
+    )
   }
 
   if (!isTokenBased) {

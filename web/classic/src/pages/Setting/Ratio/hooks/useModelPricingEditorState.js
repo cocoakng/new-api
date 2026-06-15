@@ -43,8 +43,9 @@ const EMPTY_MODEL = {
   billingExpr: '',
   requestRuleExpr: '',
   perSecondTiers: [
-    { label: 'base', maxWidth: null, pricePerSecond: '' },
+    { label: '模型价格', maxWidth: null, pricePerSecond: '' },
   ],
+  perCallMatrix: { resolutions: [], durations: [], prices: [] },
   rawRatios: {
     modelRatio: '',
     completionRatio: '',
@@ -322,6 +323,21 @@ const buildModelState = (name, sourceMaps) => {
     };
   }
 
+  if (billingMode === 'per_call') {
+    const matrixData = sourceMaps.PerCallMatrix?.[name];
+    const perCallMatrix = (matrixData && matrixData.resolutions && matrixData.resolutions.length > 0)
+      ? matrixData
+      : { resolutions: [], durations: [], prices: [] };
+    return {
+      ...EMPTY_MODEL,
+      name,
+      billingMode: 'per_call',
+      perCallMatrix,
+      rawRatios: { ...EMPTY_MODEL.rawRatios },
+      hasConflict: false,
+    };
+  }
+
   const modelRatio = toNumericString(sourceMaps.ModelRatio[name]);
   const completionRatio = toNumericString(sourceMaps.CompletionRatio[name]);
   const completionRatioMeta = normalizeCompletionRatioMeta(
@@ -410,6 +426,7 @@ const buildModelState = (name, sourceMaps) => {
 export const isBasePricingUnset = (model) =>
   model.billingMode !== 'tiered_expr' &&
   model.billingMode !== 'per_second' &&
+  model.billingMode !== 'per_call' &&
   !hasValue(model.fixedPrice) && !hasValue(model.inputPrice);
 
 export const getModelWarnings = (model, t) => {
@@ -421,6 +438,10 @@ export const getModelWarnings = (model, t) => {
   }
 
   if (model.billingMode === 'per_second') {
+    return [];
+  }
+
+  if (model.billingMode === 'per_call') {
     return [];
   }
   const warnings = [];
@@ -504,6 +525,14 @@ export const buildSummaryText = (model, t) => {
     return `${t('按秒计费')}${requestRuleSuffix}`;
   }
 
+  if (model.billingMode === 'per_call') {
+    const matrix = model.perCallMatrix;
+    if (matrix && matrix.resolutions && matrix.resolutions.length > 0) {
+      return `${t('按次矩阵')} (${matrix.resolutions.length}×${matrix.durations.length})`;
+    }
+    return `${t('按次矩阵计费')}`;
+  }
+
   if (hasValue(model.inputPrice)) {
     const extraCount = [
       model.completionPrice,
@@ -553,6 +582,12 @@ const serializeModel = (model, t) => {
   if (model.billingMode === 'per_second') {
     // per_second models don't have traditional price/ratio fields
     // The expression is handled separately in handleSubmit
+    return result;
+  }
+
+  if (model.billingMode === 'per_call') {
+    // per_call models don't have traditional price/ratio fields
+    // The matrix is handled separately in handleSubmit
     return result;
   }
 
@@ -705,6 +740,25 @@ export const buildPreviewRows = (model, t) => {
         key: 'BillingExpr',
         label: 'ModelBillingExpr',
         value: expr.length > 60 ? expr.slice(0, 60) + '...' : expr,
+      });
+    }
+    return rows;
+  }
+
+  if (model.billingMode === 'per_call') {
+    const rows = [
+      {
+        key: 'BillingMode',
+        label: 'ModelBillingMode',
+        value: 'per_call',
+      },
+    ];
+    const matrix = model.perCallMatrix;
+    if (matrix && matrix.resolutions && matrix.resolutions.length > 0) {
+      rows.push({
+        key: 'PerCallMatrix',
+        label: 'PerCallMatrix',
+        value: `${matrix.resolutions.length}×${matrix.durations.length} (${JSON.stringify(matrix)})`,
       });
     }
     return rows;
@@ -872,6 +926,7 @@ export function useModelPricingEditorState({
       ModelBillingMode: parseOptionJSON(options['billing_setting.billing_mode']),
       ModelBillingExpr: parseOptionJSON(options['billing_setting.billing_expr']),
       PerSecondExpr: parseOptionJSON(options['billing_setting.per_second_expr']),
+      PerCallMatrix: parseOptionJSON(options['billing_setting.per_call_matrix']),
     };
 
     const names = new Set([
@@ -887,6 +942,7 @@ export function useModelPricingEditorState({
       ...Object.keys(sourceMaps.AudioCompletionRatio),
       ...Object.keys(sourceMaps.ModelBillingMode),
       ...Object.keys(sourceMaps.ModelBillingExpr),
+      ...Object.keys(sourceMaps.PerCallMatrix),
     ]);
 
     const nextModels = Array.from(names)
@@ -1105,8 +1161,15 @@ export function useModelPricingEditorState({
       }
       if (value === 'per_second' && (!model.perSecondTiers || model.perSecondTiers.length === 0)) {
         next.perSecondTiers = [
-          { label: 'base', maxWidth: null, pricePerSecond: '0.05' },
+          { label: '模型价格', maxWidth: null, pricePerSecond: '0.05' },
         ];
+      }
+      if (value === 'per_call' && (!model.perCallMatrix || !model.perCallMatrix.resolutions || model.perCallMatrix.resolutions.length === 0)) {
+        next.perCallMatrix = {
+          resolutions: ['any'],
+          durations: [4, 6, 8, 10, 15],
+          prices: [['', '', '', '', '']],
+        };
       }
       return next;
     });
@@ -1133,6 +1196,14 @@ export function useModelPricingEditorState({
     upsertModel(selectedModel.name, (model) => ({
       ...model,
       perSecondTiers: newTiers,
+    }));
+  };
+
+  const handlePerCallMatrixChange = (newMatrix) => {
+    if (!selectedModel) return;
+    upsertModel(selectedModel.name, (model) => ({
+      ...model,
+      perCallMatrix: newMatrix,
     }));
   };
 
@@ -1211,6 +1282,7 @@ export function useModelPricingEditorState({
           billingExpr: selectedModel.billingExpr || '',
           requestRuleExpr: selectedModel.requestRuleExpr || '',
           perSecondTiers: selectedModel.perSecondTiers || [],
+          perCallMatrix: selectedModel.perCallMatrix || { resolutions: [], durations: [], prices: [] },
           perSecondRatioLocked: selectedModel.perSecondRatioLocked,
         };
 
@@ -1282,6 +1354,10 @@ export function useModelPricingEditorState({
         'billing_setting.per_second_expr': {},
       };
 
+      const perCallOutput = {
+        'billing_setting.per_call_matrix': {},
+      };
+
       for (const model of models) {
         if (model.billingMode === 'tiered_expr') {
           const finalBillingExpr = combineBillingExpr(
@@ -1302,6 +1378,14 @@ export function useModelPricingEditorState({
           }
         }
 
+        if (model.billingMode === 'per_call') {
+          const matrix = model.perCallMatrix;
+          if (matrix && matrix.resolutions && matrix.resolutions.length > 0 && matrix.durations && matrix.durations.length > 0) {
+            tieredOutput['billing_setting.billing_mode'][model.name] = 'per_call';
+            perCallOutput['billing_setting.per_call_matrix'][model.name] = matrix;
+          }
+        }
+
         // Always serialize ratio/price values for all models (including
         // tiered_expr) so they serve as fallback during multi-instance sync
         // delay.  ModelPriceHelper checks billing_mode first, so these values
@@ -1314,7 +1398,7 @@ export function useModelPricingEditorState({
             }
           });
         } catch (e) {
-          if (model.billingMode !== 'tiered_expr' && model.billingMode !== 'per_second') {
+          if (model.billingMode !== 'tiered_expr' && model.billingMode !== 'per_second' && model.billingMode !== 'per_call') {
             throw e;
           }
         }
@@ -1334,6 +1418,14 @@ export function useModelPricingEditorState({
           }),
         ),
         ...Object.entries(perSecondOutput).map(([key, value]) =>
+          Object.keys(value).length > 0
+            ? API.put('/api/option/', {
+                key,
+                value: JSON.stringify(value, null, 2),
+              })
+            : null,
+        ).filter(Boolean),
+        ...Object.entries(perCallOutput).map(([key, value]) =>
           Object.keys(value).length > 0
             ? API.put('/api/option/', {
                 key,
@@ -1385,6 +1477,7 @@ export function useModelPricingEditorState({
     handleBillingExprChange,
     handleRequestRuleExprChange,
     handlePerSecondTiersChange,
+    handlePerCallMatrixChange,
     handleSubmit,
     addModel,
     deleteModel,

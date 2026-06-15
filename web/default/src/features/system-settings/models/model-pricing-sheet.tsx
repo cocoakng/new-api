@@ -74,6 +74,7 @@ import {
 import { formatPricingNumber } from './pricing-format'
 import { TieredPricingEditor } from './tiered-pricing-editor'
 import { PerSecondPricingEditor } from './per-second-pricing-editor'
+import { PerCallPricingEditor } from './per-call-pricing-editor'
 import {
   EMPTY_LANE_ENABLED,
   EMPTY_LANE_PRICES,
@@ -180,7 +181,12 @@ export const ModelPricingEditorPanel = forwardRef<
     resolution: string | null
     maxWidth: number | null
     pricePerSecond: string
-  }>>([{ label: 'base', resolution: null, maxWidth: null, pricePerSecond: '' }])
+  }>>([{ label: '模型价格', resolution: null, maxWidth: null, pricePerSecond: '' }])
+  const [perCallMatrix, setPerCallMatrix] = useState<{
+    resolutions: string[]
+    durations: number[]
+    prices: (number | string)[][]
+  } | null>(null)
   const [requestRuleExpr, setRequestRuleExpr] = useState('')
   const isEditMode = !!editData
 
@@ -219,9 +225,11 @@ export const ModelPricingEditorPanel = forwardRef<
           ? 'tiered_expr'
           : editData.billingMode === 'per_second'
             ? 'per_second'
-            : editData.price
-              ? 'per-request'
-              : 'per-token'
+            : editData.billingMode === 'per_call'
+              ? 'per_call'
+              : editData.price
+                ? 'per-request'
+                : 'per-token'
       )
       setBillingExpr(editData.billingExpr || '')
       setPerSecondTiers(
@@ -231,8 +239,13 @@ export const ModelPricingEditorPanel = forwardRef<
                 ...t,
                 pricePerSecond: t.pricePerSecond || '',
               }))
-            : [{ label: 'base', resolution: null, maxWidth: null, pricePerSecond: '0.05' }]
-          : [{ label: 'base', resolution: null, maxWidth: null, pricePerSecond: '' }]
+            : [{ label: '模型价格', resolution: null, maxWidth: null, pricePerSecond: '0.05' }]
+          : [{ label: '模型价格', resolution: null, maxWidth: null, pricePerSecond: '' }]
+      )
+      setPerCallMatrix(
+        editData.billingMode === 'per_call' && editData.perCallMatrix
+          ? editData.perCallMatrix
+          : null
       )
       setRequestRuleExpr(editData.requestRuleExpr || '')
     } else {
@@ -249,7 +262,8 @@ export const ModelPricingEditorPanel = forwardRef<
       })
       setPricingMode('per-token')
       setBillingExpr('')
-      setPerSecondTiers([{ label: 'base', resolution: null, maxWidth: null, pricePerSecond: '' }])
+      setPerSecondTiers([{ label: '模型价格', resolution: null, maxWidth: null, pricePerSecond: '' }])
+      setPerCallMatrix(null)
       setRequestRuleExpr('')
     }
 
@@ -379,17 +393,51 @@ export const ModelPricingEditorPanel = forwardRef<
     if (nextMode === 'per_second') {
       setPerSecondTiers(prev =>
         prev.length === 0 || (!prev[0]?.pricePerSecond && prev.length === 1)
-          ? [{ label: 'base', resolution: null, maxWidth: null, pricePerSecond: '0.05' }]
+          ? [{ label: '模型价格', resolution: null, maxWidth: null, pricePerSecond: '' }]
           : prev
       )
+    }
+    if (nextMode === 'per_call' && !perCallMatrix) {
+      setPerCallMatrix({ resolutions: ['any'], durations: [4, 6, 8, 10, 15], prices: [['', '', '', '', '']] })
     }
   }
 
   const watchedValues = form.watch()
+
+  // Build per_second expression from tiers
   const perSecondExpr = useMemo(
     () => buildPerSecondExprFromTiers(perSecondTiers),
     [perSecondTiers]
   )
+
+  // Build per_call expression from matrix (reuses perSecondExpr variable for preview)
+  const perCallExpr = useMemo(() => {
+    if (!perCallMatrix?.resolutions.length || !perCallMatrix?.durations.length) return ''
+    const { resolutions, durations, prices } = perCallMatrix
+    let expr = ''
+    const lastIndex = resolutions.length - 1
+    for (let ri = 0; ri < resolutions.length; ri++) {
+      const res = resolutions[ri]
+      const lastCi = durations.length - 1
+      for (let ci = 0; ci < durations.length; ci++) {
+        const dur = durations[ci]
+        const rawPrice = prices[ri]?.[ci] ?? 0
+        const price = typeof rawPrice === 'string' ? (parseFloat(rawPrice) || 0) : rawPrice
+        const tierLabel = `${res}_${dur}s`
+        if (ri === lastIndex && ci === lastCi) {
+          expr = expr ? `${expr} : tier("${tierLabel}", ${price})` : `tier("${tierLabel}", ${price})`
+        } else if (ci === lastCi && ri < lastIndex) {
+          const tierExpr = `tier("${tierLabel}", ${price})`
+          expr = expr ? `resolution == "${res}" ? ${tierExpr} : ${expr}` : `resolution == "${res}" ? ${tierExpr} : `
+        } else {
+          const tierExpr = `tier("${tierLabel}", ${price})`
+          const cond = `resolution == "${res}" && duration == ${dur}`
+          expr = expr ? `${cond} ? ${tierExpr} : ${expr}` : `${cond} ? ${tierExpr} : `
+        }
+      }
+    }
+    return `v2:${expr}`
+  }, [perCallMatrix])
   const previewRows = useMemo(
     () =>
       buildPreviewRows(
@@ -397,7 +445,7 @@ export const ModelPricingEditorPanel = forwardRef<
         pricingMode,
         billingExpr,
         requestRuleExpr,
-        perSecondExpr,
+        pricingMode === 'per_call' ? perCallExpr : perSecondExpr,
         promptPrice,
         lanePrices,
         laneEnabled,
@@ -407,7 +455,9 @@ export const ModelPricingEditorPanel = forwardRef<
     [
       billingExpr,
       perSecondExpr,
+      perCallExpr,
       perSecondTiers,
+      perCallMatrix,
       laneEnabled,
       lanePrices,
       pricingMode,
@@ -516,6 +566,21 @@ export const ModelPricingEditorPanel = forwardRef<
           data.perSecondExpr = expr
         }
       }
+      if (pricingMode === 'per_call' && perCallMatrix) {
+        // Convert string prices to numbers for backend
+        const normalizedMatrix = {
+          ...perCallMatrix,
+          prices: perCallMatrix.prices.map(row => row.map(v => {
+            const num = typeof v === 'string' ? parseFloat(v) : v
+            return isNaN(num) ? 0 : num
+          })),
+        }
+        data.perCallMatrix = normalizedMatrix
+        const expr = perCallExpr
+        if (expr) {
+          data.billingExpr = expr
+        }
+      }
 
       return data
     },
@@ -603,7 +668,7 @@ export const ModelPricingEditorPanel = forwardRef<
                   onValueChange={handleModeChange}
                   className='gap-4'
                 >
-                  <TabsList className='grid w-full grid-cols-4'>
+                  <TabsList className='grid w-full grid-cols-5'>
                     <TabsTrigger value='per-token'>
                       {t('Per-token')}
                     </TabsTrigger>
@@ -615,6 +680,9 @@ export const ModelPricingEditorPanel = forwardRef<
                     </TabsTrigger>
                     <TabsTrigger value='per_second'>
                       {t('Pay per second')}
+                    </TabsTrigger>
+                    <TabsTrigger value='per_call'>
+                      {t('Pay per call')}
                     </TabsTrigger>
                   </TabsList>
 
@@ -718,6 +786,15 @@ export const ModelPricingEditorPanel = forwardRef<
                       <PerSecondPricingEditor
                         tiers={perSecondTiers}
                         onTiersChange={setPerSecondTiers}
+                      />
+                    </FieldGroup>
+                  </TabsContent>
+
+                  <TabsContent value='per_call' className='pt-0'>
+                    <FieldGroup className='gap-5'>
+                      <PerCallPricingEditor
+                        matrix={perCallMatrix}
+                        onChange={setPerCallMatrix}
                       />
                     </FieldGroup>
                   </TabsContent>

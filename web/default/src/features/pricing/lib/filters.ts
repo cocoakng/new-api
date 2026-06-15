@@ -83,6 +83,8 @@ export function filterByQuotaType(
     targetType = QUOTA_TYPE_VALUES.TOKEN
   } else if (quotaType === QUOTA_TYPES.PER_SECOND) {
     targetType = QUOTA_TYPE_VALUES.PER_SECOND
+  } else if (quotaType === QUOTA_TYPES.PER_CALL) {
+    targetType = QUOTA_TYPE_VALUES.PER_CALL
   } else {
     targetType = QUOTA_TYPE_VALUES.REQUEST
   }

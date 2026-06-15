@@ -1114,6 +1114,48 @@ export const formatPerSecondPriceSummary = (billingExpr, t, groupRatio = 1) => {
   );
 };
 
+// 格式化按次矩阵计费价格摘要（用于卡片视图）
+export const formatPerCallPriceSummary = (matrix, t, groupRatio = 1) => {
+  if (!matrix || !matrix.resolutions || matrix.resolutions.length === 0) {
+    return <span style={{ color: 'var(--semi-color-text-1)' }}>{t('按次矩阵计费')}</span>;
+  }
+
+  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
+  let symbol = '$';
+  let rate = 1;
+  try {
+    const s = JSON.parse(localStorage.getItem('status') || '{}');
+    if (quotaDisplayType === 'CNY') {
+      symbol = '¥';
+      rate = s?.usd_exchange_rate || 7;
+    } else if (quotaDisplayType === 'CUSTOM') {
+      symbol = s?.custom_currency_symbol || '¤';
+      rate = s?.custom_currency_exchange_rate || 1;
+    }
+  } catch (e) {}
+
+  // Placeholder resolution names that should be hidden in display
+  const placeholderResolutions = new Set(['default', 'any', 'all', 'standard', '通用', '默认']);
+  const showResolution = !(matrix.resolutions.length === 1 && placeholderResolutions.has(matrix.resolutions[0]));
+
+  return (
+    <>
+      {matrix.resolutions.map((res, ri) => {
+        const prices = matrix.durations.map((dur, ci) => {
+          const price = matrix.prices[ri]?.[ci] ?? 0;
+          const finalPrice = price * groupRatio;
+          return `${symbol}${(finalPrice * rate).toFixed(2)}/${dur}s`;
+        });
+        return (
+          <span key={res} style={{ color: 'var(--semi-color-text-1)' }}>
+            {showResolution ? `${res}: ` : ''}{prices.join(', ')}
+          </span>
+        );
+      })}
+    </>
+  );
+};
+
 // -------------------------------
 // CardPro 分页配置函数
 // 用于创建 CardPro 的 paginationArea 配置

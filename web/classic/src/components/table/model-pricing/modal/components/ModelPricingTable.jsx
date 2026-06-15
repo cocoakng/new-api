@@ -105,8 +105,31 @@ const ModelPricingTable = ({
         groupRatio && groupRatio[group] ? groupRatio[group] : 1;
 
       const isPerSecond = modelData?.billing_mode === 'per_second';
+      const isPerCall = modelData?.billing_mode === 'per_call';
       const perSecondPriceItems = isPerSecond
         ? renderPerSecondPriceItems(modelData?.billing_expr, groupRatioValue, t)
+        : null;
+
+      // Build per_call price summary from matrix
+      const { symbol, rate } = getCurrencyConfig();
+      const perCallPriceItems = isPerCall && modelData?.per_call_matrix
+        ? (() => {
+            const matrix = modelData.per_call_matrix;
+            const placeholderResolutions = new Set(['default', 'any', 'all', 'standard', '通用', '默认']);
+            const showResolution = !(matrix.resolutions.length === 1 && placeholderResolutions.has(matrix.resolutions[0]));
+            return matrix.resolutions.map((res, ri) => {
+              const rowPrices = matrix.durations.map((dur, ci) => {
+                const price = matrix.prices[ri]?.[ci] ?? 0;
+                const finalPrice = groupRatioValue ? price * groupRatioValue : price;
+                return `${symbol}${(finalPrice * rate).toFixed(3)}/${dur}s`;
+              });
+              return {
+                key: res,
+                label: showResolution ? res : t('价格'),
+                value: rowPrices.join(', '),
+              };
+            });
+          })()
         : null;
 
       return {
@@ -118,13 +141,16 @@ const ModelPricingTable = ({
             ? t('动态计费')
             : modelData?.billing_mode === 'per_second'
               ? t('按秒计费')
-              : modelData?.quota_type === 0
-                ? t('按量计费')
-                : modelData?.quota_type === 1
-                  ? t('按次计费')
-                  : '-',
-        priceItems: perSecondPriceItems || getModelPriceItems(priceData, t, siteDisplayType),
+              : modelData?.billing_mode === 'per_call'
+                ? t('按次矩阵计费')
+                : modelData?.quota_type === 0
+                  ? t('按量计费')
+                  : modelData?.quota_type === 1
+                    ? t('按次计费')
+                    : '-',
+        priceItems: perSecondPriceItems || perCallPriceItems || getModelPriceItems(priceData, t, siteDisplayType),
         isPerSecond,
+        isPerCall,
       };
     });
 
@@ -166,6 +192,7 @@ const ModelPricingTable = ({
         else if (text === t('按次计费')) color = 'teal';
         else if (text === t('按秒计费')) color = 'amber';
         else if (text === t('动态计费')) color = 'amber';
+        else if (text === t('按次矩阵计费')) color = 'green';
         return (
           <Tag color={color} size='small' shape='circle'>
             {text || '-'}
@@ -184,6 +211,19 @@ const ModelPricingTable = ({
               {items.map((item) => (
                 <div key={item.key}>
                   <div className='font-semibold text-orange-600'>
+                    {item.label} {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        }
+        if (record?.isPerCall && items && items.length > 0) {
+          return (
+            <div className='space-y-1'>
+              {items.map((item) => (
+                <div key={item.key}>
+                  <div className='font-semibold text-green-600'>
                     {item.label} {item.value}
                   </div>
                 </div>

@@ -37,7 +37,7 @@ export type ModelPricingFormValues = z.infer<
   ReturnType<typeof createModelPricingSchema>
 >
 
-export type PricingMode = 'per-token' | 'per-request' | 'tiered_expr' | 'per_second'
+export type PricingMode = 'per-token' | 'per-request' | 'tiered_expr' | 'per_second' | 'per_call'
 
 export type LaneKey =
   | 'completion'
@@ -61,6 +61,11 @@ export type ModelRatioData = {
   billingExpr?: string
   perSecondExpr?: string
   requestRuleExpr?: string
+  perCallMatrix?: {
+    resolutions: string[]
+    durations: number[]
+    prices: number[][]
+  }
 }
 
 export type PreviewRow = {
@@ -236,6 +241,25 @@ export function buildPreviewRows(
       { key: 'mode', label: 'BillingMode', value: 'per_second' },
     ]
     if (perSecondExpr) {
+      rows.push({
+        key: 'expr',
+        label: 'BillingExpr',
+        value:
+          perSecondExpr.length > 60
+            ? perSecondExpr.slice(0, 60) + '...'
+            : perSecondExpr,
+        multiline: true,
+      })
+    }
+    return rows
+  }
+
+  if (mode === 'per_call') {
+    const rows = [
+      { key: 'mode', label: 'BillingMode', value: 'per_call' },
+    ]
+    if (perSecondExpr) {
+      // Reuse perSecondExpr field for per_call generated expression
       rows.push({
         key: 'expr',
         label: 'BillingExpr',

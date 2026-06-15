@@ -50,10 +50,12 @@ export type PricingModel = {
   supported_endpoint_types?: string[]
   key?: string
   group_ratio?: Record<string, number>
-  /** Billing mode (e.g. "tiered_expr") used to flag dynamic pricing */
+  /** Billing mode (e.g. "tiered_expr", "per_second", "per_call") used to flag dynamic pricing */
   billing_mode?: string
   /** Raw expression describing dynamic / tiered billing */
   billing_expr?: string
+  /** 2D pricing matrix for per-call billing (resolutions × durations → fixed price) */
+  per_call_matrix?: PerCallMatrixData
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
   /**
@@ -89,6 +91,13 @@ export type ModelCapability =
   | 'code_interpreter'
   | 'caching'
   | 'embeddings'
+
+/** 2D pricing matrix for per-call billing: resolutions × durations → fixed price */
+export type PerCallMatrixData = {
+  resolutions: string[]   // e.g. ["720p", "1080p"]
+  durations: number[]     // e.g. [4, 6, 10]
+  prices: number[][]      // prices[row][col], row=resolution, col=duration
+}
 
 export type PricingData = {
   success: boolean

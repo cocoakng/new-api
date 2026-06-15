@@ -25,6 +25,8 @@ import {
   stringToColor,
   calculateModelPrice,
   getModelPriceItems,
+  formatPerSecondPriceSummary,
+  formatPerCallPriceSummary,
   getLobeHubIcon,
 } from '../../../../../helpers';
 import {
@@ -234,6 +236,17 @@ export const getPricingTableColumns = ({
     ...(isMobile ? {} : { fixed: 'right' }),
     render: (text, record, index) => {
       const priceData = getPriceData(record);
+
+      // Handle per_call billing
+      if (record.billing_mode === 'per_call' && record.per_call_matrix) {
+        return formatPerCallPriceSummary(record.per_call_matrix, t, priceData?.usedGroupRatio);
+      }
+
+      // Handle per_second billing
+      if (record.billing_mode === 'per_second' && record.billing_expr) {
+        return formatPerSecondPriceSummary(record.billing_expr, t, priceData?.usedGroupRatio);
+      }
+
       const priceItems = getModelPriceItems(priceData, t, siteDisplayType);
 
       return (
