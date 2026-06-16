@@ -68,15 +68,18 @@ function PerSecondPricingEditor({ model, onTiersChange, t }) {
       return t.maxWidth === null || t.maxWidth === '';
     });
     if (idx >= 0) {
-      next[idx] = { ...next[idx], pricePerSecond: value };
+      next[idx] = { ...next[idx], pricePerSecond: typeof value === 'string' ? value.trim() : value };
     } else {
-      next[next.length - 1] = { ...next[next.length - 1], pricePerSecond: value };
+      next[next.length - 1] = { ...next[next.length - 1], pricePerSecond: typeof value === 'string' ? value.trim() : value };
     }
     onTiersChange(next);
   };
 
   const updateTier = (index, field, value) => {
     const next = [...tiers];
+    if (field === 'pricePerSecond') {
+      value = typeof value === 'string' ? value.trim() : value;
+    }
     next[index] = { ...next[index], [field]: value };
     onTiersChange(next);
   };

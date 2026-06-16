@@ -89,6 +89,7 @@ func CompileFromCacheByHash(exprStr, hash string) (*vm.Program, error) {
 }
 
 func compileFromCacheByHash(exprStr, hash string) (*vm.Program, error) {
+	exprStr = strings.TrimSpace(exprStr)
 	cacheMu.RLock()
 	if entry, ok := cache[hash]; ok {
 		cacheMu.RUnlock()

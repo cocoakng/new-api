@@ -256,7 +256,7 @@ const buildPerSecondExprFromTiers = (tiers) => {
     expr = expr.slice(0, -2);
   }
 
-  return `v2:${expr}`;
+  return `v2:${expr}`.trim();
 };
 
 const parseOptionJSON = (rawValue) => {
