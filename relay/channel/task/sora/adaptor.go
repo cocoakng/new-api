@@ -63,15 +63,21 @@ type responseTask struct {
 
 type TaskAdaptor struct {
 	taskcommon.BaseBilling
-	ChannelType int
-	apiKey      string
-	baseURL     string
+	ChannelType   int
+	apiKey        string
+	baseURL       string
+	videoEndpoint string // 自定义视频任务端点路径，默认 /v1/videos
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.ChannelType = info.ChannelType
 	a.baseURL = info.ChannelBaseUrl
 	a.apiKey = info.ApiKey
+	if info.ChannelOtherSettings.TaskVideoEndpoint != "" {
+		a.videoEndpoint = info.ChannelOtherSettings.TaskVideoEndpoint
+	} else {
+		a.videoEndpoint = "/v1/videos"
+	}
 }
 
 func validateRemixRequest(c *gin.Context) *dto.TaskError {
@@ -131,9 +137,9 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.Action == constant.TaskActionRemix {
-		return fmt.Sprintf("%s/v1/videos/%s/remix", a.baseURL, info.OriginTaskID), nil
+		return fmt.Sprintf("%s%s/%s/remix", a.baseURL, a.videoEndpoint, info.OriginTaskID), nil
 	}
-	return fmt.Sprintf("%s/v1/videos", a.baseURL), nil
+	return fmt.Sprintf("%s%s", a.baseURL, a.videoEndpoint), nil
 }
 
 // BuildRequestHeader sets required headers.
@@ -263,7 +269,11 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	uri := fmt.Sprintf("%s/v1/videos/%s", baseUrl, taskID)
+	endpoint := a.videoEndpoint
+	if endpoint == "" {
+		endpoint = "/v1/videos"
+	}
+	uri := fmt.Sprintf("%s%s/%s", baseUrl, endpoint, taskID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {

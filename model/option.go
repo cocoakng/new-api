@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/performance_setting"
@@ -614,6 +615,14 @@ func handleConfigUpdate(key, value string) bool {
 	} else if configName == "tool_price_setting" {
 		operation_setting.RebuildToolPriceIndex()
 	} else if configName == "billing_setting" {
+		// 重新加载 billing_setting 到内存（billing_mode, per_call_matrix 等）
+		_ = billing_setting.ReloadFromDB(func(key string) (string, error) {
+			var opt Option
+			if err := DB.Where("key = ?", key).First(&opt).Error; err != nil {
+				return "", err
+			}
+			return opt.Value, nil
+		})
 		InvalidatePricingCache()
 		ratio_setting.InvalidateExposedDataCache()
 		billingexpr.InvalidateCache()

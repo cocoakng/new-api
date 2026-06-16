@@ -49,6 +49,22 @@ func init() {
 	config.GlobalConfig.Register("billing_setting", &billingSetting)
 }
 
+// ReloadFromDB 从数据库重新加载 billing_setting 到内存。
+// 在 billing_setting.* 选项更新后调用，确保内存数据与数据库同步。
+func ReloadFromDB(getOption func(key string) (string, error)) error {
+	opts := make(map[string]string)
+	for _, key := range []string{BillingModeField, BillingExprField, PerSecondPriceField, PerSecondExprField, PerCallMatrixField} {
+		val, err := getOption("billing_setting." + key)
+		if err == nil && val != "" {
+			opts[key] = val
+		}
+	}
+	if len(opts) == 0 {
+		return nil
+	}
+	return config.UpdateConfigFromMap(&billingSetting, opts)
+}
+
 // ---------------------------------------------------------------------------
 // Read accessors (hot path, must be fast)
 // ---------------------------------------------------------------------------

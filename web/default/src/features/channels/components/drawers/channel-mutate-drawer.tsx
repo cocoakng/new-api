@@ -3031,6 +3031,32 @@ export function ChannelMutateDrawer({
                                     </FormItem>
                                   )}
                                 />
+
+                                <FormField
+                                  control={form.control}
+                                  name='task_video_endpoint'
+                                  render={({ field }) => (
+                                    <FormItem className='flex flex-col gap-3 px-4 py-3'>
+                                      <div className='space-y-0.5'>
+                                        <FormLabel className='text-sm'>
+                                          {t('Task video endpoint')}
+                                        </FormLabel>
+                                        <FormDescription>
+                                          {t(
+                                            'Custom video task endpoint path (e.g. /v1/videos/generations). Overrides default /v1/videos for Sora/OpenAI video channels.'
+                                          )}
+                                        </FormDescription>
+                                      </div>
+                                      <FormControl>
+                                        <input
+                                          {...field}
+                                          className='border-input bg-background text-sm focus-visible:ring-ring flex h-9 w-full rounded-md border px-3 py-1 focus-visible:ring-1'
+                                          placeholder='/v1/videos/generations'
+                                        />
+                                      </FormControl>
+                                    </FormItem>
+                                  )}
+                                />
                               </>
                             )}
 

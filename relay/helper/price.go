@@ -709,6 +709,8 @@ func modelPriceHelperPerCallMatrix(c *gin.Context, info *relaycommon.RelayInfo, 
 
 	priceData := types.PriceData{
 		FreeModel:         freeModel,
+		ModelPrice:        price,
+		UsePrice:          true,
 		GroupRatioInfo:    groupRatioInfo,
 		Quota:             preConsumedQuota,
 		QuotaToPreConsume: preConsumedQuota,

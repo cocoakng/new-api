@@ -19,8 +19,15 @@ import (
 func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	tokenName := c.GetString("token_name")
 	logContent := fmt.Sprintf("操作 %s", info.Action)
-	// 支持任务仅按次计费
-	if common.StringsContains(constant.TaskPricePatches, info.OriginModelName) {
+
+	// per_call_matrix 计费：展示 resolution 和 duration
+	if info.TieredBillingSnapshot != nil &&
+		info.TieredBillingSnapshot.BillingMode == "per_call" &&
+		info.TieredBillingSnapshot.EstimatedTier != "" {
+		tier := info.TieredBillingSnapshot.EstimatedTier // e.g. "720p_8s"
+		logContent = fmt.Sprintf("%s，按次计费（%s）", logContent, tier)
+	} else if common.StringsContains(constant.TaskPricePatches, info.OriginModelName) {
+		// 支持任务仅按次计费
 		logContent = fmt.Sprintf("%s，按次计费", logContent)
 	} else {
 		if len(info.PriceData.OtherRatios) > 0 {
