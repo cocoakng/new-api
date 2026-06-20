@@ -436,9 +436,12 @@ func modelPriceHelperSecond(c *gin.Context, info *relaycommon.RelayInfo, promptT
 
 		// Normalize resolution to root level (try multiple field names)
 		if r := gjson.GetBytes(requestInput.Body, "resolution"); r.Exists() && r.String() != "" {
-			_ = r // resolution already at root
+			resVal := strings.TrimSpace(r.String())
+			resVal = strings.ToUpper(resVal)
+			requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", resVal)
 		} else if r := gjson.GetBytes(requestInput.Body, "metadata.resolution"); r.Exists() && r.String() != "" {
 			resVal := strings.TrimSpace(r.String())
+			resVal = strings.ToUpper(resVal)
 			requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", resVal)
 		} else if r := gjson.GetBytes(requestInput.Body, "mode"); r.Exists() && r.String() != "" {
 			// Map mode to resolution: std -> 720P, pro -> 1080P
@@ -567,9 +570,12 @@ func modelPriceHelperPerCallSecond(c *gin.Context, info *relaycommon.RelayInfo, 
 
 		// Normalize resolution to root level (try multiple field names)
 		if r := gjson.GetBytes(requestInput.Body, "resolution"); r.Exists() && r.String() != "" {
-			_ = r // resolution already at root
+			resVal := strings.TrimSpace(r.String())
+			resVal = strings.ToUpper(resVal)
+			requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", resVal)
 		} else if r := gjson.GetBytes(requestInput.Body, "metadata.resolution"); r.Exists() && r.String() != "" {
 			resVal := strings.TrimSpace(r.String())
+			resVal = strings.ToUpper(resVal)
 			requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", resVal)
 		} else if r := gjson.GetBytes(requestInput.Body, "mode"); r.Exists() && r.String() != "" {
 			// Map mode to resolution: std -> 720P, pro -> 1080P
