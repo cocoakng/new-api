@@ -93,7 +93,7 @@ func runProgram(prog *vm.Program, params TokenParams, request RequestInput) (flo
 			if source == nil || substr == "" {
 				return false
 			}
-			return strings.Contains(fmt.Sprint(source), substr)
+			return strings.Contains(strings.ToLower(fmt.Sprint(source)), strings.ToLower(substr))
 		},
 		"hour":    func(tz string) int { return timeInZone(tz).Hour() },
 		"minute":  func(tz string) int { return timeInZone(tz).Minute() },

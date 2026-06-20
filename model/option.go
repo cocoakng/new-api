@@ -557,6 +557,16 @@ func updateOptionMap(key string, value string) (err error) {
 		err = ratio_setting.UpdateAudioRatioByJSONString(value)
 	case "AudioCompletionRatio":
 		err = ratio_setting.UpdateAudioCompletionRatioByJSONString(value)
+	case "billing_setting.billing_mode":
+		err = billing_setting.UpdateBillingModeByJSONString(value)
+	case "billing_setting.billing_expr":
+		err = billing_setting.UpdateBillingExprByJSONString(value)
+	case "billing_setting.per_second_price":
+		err = billing_setting.UpdatePerSecondPriceByJSONString(value)
+	case "billing_setting.per_second_expr":
+		err = billing_setting.UpdatePerSecondExprByJSONString(value)
+	case "billing_setting.per_call_matrix":
+		err = billing_setting.UpdatePerCallMatrixByJSONString(value)
 	case "TopUpLink":
 		common.TopUpLink = value
 	//case "ChatLink":

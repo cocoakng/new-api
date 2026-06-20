@@ -3,6 +3,7 @@ package billing_setting
 import (
 	"fmt"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/samber/lo"
@@ -94,6 +95,31 @@ func GetPerSecondExpr(model string) (string, bool) {
 func GetPerCallMatrix(model string) (PerCallMatrixData, bool) {
 	data, ok := billingSetting.PerCallMatrix[model]
 	return data, ok
+}
+
+// Update functions (called from model.updateOptionMap, same pattern as ratio_setting)
+func UpdateBillingModeByJSONString(jsonStr string) error {
+	return updateMapFromJSONString(billingSetting.BillingMode, jsonStr)
+}
+
+func UpdateBillingExprByJSONString(jsonStr string) error {
+	return updateMapFromJSONString(billingSetting.BillingExpr, jsonStr)
+}
+
+func UpdatePerSecondPriceByJSONString(jsonStr string) error {
+	return updateMapFromJSONString(billingSetting.PerSecondPrice, jsonStr)
+}
+
+func UpdatePerSecondExprByJSONString(jsonStr string) error {
+	return updateMapFromJSONString(billingSetting.PerSecondExpr, jsonStr)
+}
+
+func UpdatePerCallMatrixByJSONString(jsonStr string) error {
+	return updateMapFromJSONString(billingSetting.PerCallMatrix, jsonStr)
+}
+
+func updateMapFromJSONString(m interface{}, jsonStr string) error {
+	return common.UnmarshalJsonStr(jsonStr, m)
 }
 
 func GetPerCallMatrixCopy() map[string]PerCallMatrixData {

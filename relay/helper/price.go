@@ -434,12 +434,53 @@ func modelPriceHelperSecond(c *gin.Context, info *relaycommon.RelayInfo, promptT
 			requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "duration", duration)
 		}
 
-		// Normalize resolution to root level
-		if r := gjson.GetBytes(requestInput.Body, "resolution"); r.Exists() {
+		// Normalize resolution to root level (try multiple field names)
+		if r := gjson.GetBytes(requestInput.Body, "resolution"); r.Exists() && r.String() != "" {
 			_ = r // resolution already at root
 		} else if r := gjson.GetBytes(requestInput.Body, "metadata.resolution"); r.Exists() && r.String() != "" {
-			resVal := strings.ToLower(strings.TrimSpace(r.String()))
+			resVal := strings.TrimSpace(r.String())
 			requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", resVal)
+		} else if r := gjson.GetBytes(requestInput.Body, "mode"); r.Exists() && r.String() != "" {
+			// Map mode to resolution: std -> 720P, pro -> 1080P
+			modeVal := strings.ToLower(strings.TrimSpace(r.String()))
+			switch modeVal {
+			case "std":
+				requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", "720P")
+			case "pro":
+				requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", "1080P")
+			default:
+				requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", modeVal)
+			}
+		} else if r := gjson.GetBytes(requestInput.Body, "quality"); r.Exists() && r.String() != "" {
+			// Map quality to resolution: hd -> 720P, standard -> 720P, high -> 1080P
+			qualityVal := strings.ToLower(strings.TrimSpace(r.String()))
+			switch qualityVal {
+			case "hd", "standard":
+				requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", "720P")
+			case "high", "uhd":
+				requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", "1080P")
+			default:
+				requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", qualityVal)
+			}
+		} else {
+			w := gjson.GetBytes(requestInput.Body, "width")
+			h := gjson.GetBytes(requestInput.Body, "height")
+			if w.Exists() && h.Exists() {
+				// Map width/height to resolution based on shorter side
+				width := int(w.Float())
+				height := int(h.Float())
+				shorter := width
+				if height < width {
+					shorter = height
+				}
+				res := "720P"
+				if shorter > 960 {
+					res = "1080P"
+				} else if shorter <= 480 {
+					res = "480P"
+				}
+				requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", res)
+			}
 		}
 	}
 
@@ -524,10 +565,53 @@ func modelPriceHelperPerCallSecond(c *gin.Context, info *relaycommon.RelayInfo, 
 			requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "duration", duration)
 		}
 
-		// Normalize resolution to root level
-		if r := gjson.GetBytes(requestInput.Body, "metadata.resolution"); r.Exists() && r.String() != "" {
-			resVal := strings.ToLower(strings.TrimSpace(r.String()))
+		// Normalize resolution to root level (try multiple field names)
+		if r := gjson.GetBytes(requestInput.Body, "resolution"); r.Exists() && r.String() != "" {
+			_ = r // resolution already at root
+		} else if r := gjson.GetBytes(requestInput.Body, "metadata.resolution"); r.Exists() && r.String() != "" {
+			resVal := strings.TrimSpace(r.String())
 			requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", resVal)
+		} else if r := gjson.GetBytes(requestInput.Body, "mode"); r.Exists() && r.String() != "" {
+			// Map mode to resolution: std -> 720P, pro -> 1080P
+			modeVal := strings.ToLower(strings.TrimSpace(r.String()))
+			switch modeVal {
+			case "std":
+				requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", "720P")
+			case "pro":
+				requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", "1080P")
+			default:
+				requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", modeVal)
+			}
+		} else if r := gjson.GetBytes(requestInput.Body, "quality"); r.Exists() && r.String() != "" {
+			// Map quality to resolution: hd -> 720P, standard -> 720P, high -> 1080P
+			qualityVal := strings.ToLower(strings.TrimSpace(r.String()))
+			switch qualityVal {
+			case "hd", "standard":
+				requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", "720P")
+			case "high", "uhd":
+				requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", "1080P")
+			default:
+				requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", qualityVal)
+			}
+		} else {
+			w := gjson.GetBytes(requestInput.Body, "width")
+			h := gjson.GetBytes(requestInput.Body, "height")
+			if w.Exists() && h.Exists() {
+				// Map width/height to resolution based on shorter side
+				width := int(w.Float())
+				height := int(h.Float())
+				shorter := width
+				if height < width {
+					shorter = height
+				}
+				res := "720P"
+				if shorter > 960 {
+					res = "1080P"
+				} else if shorter <= 480 {
+					res = "480P"
+				}
+				requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "resolution", res)
+			}
 		}
 	}
 
