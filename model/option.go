@@ -628,7 +628,7 @@ func handleConfigUpdate(key, value string) bool {
 		// 重新加载 billing_setting 到内存（billing_mode, per_call_matrix 等）
 		_ = billing_setting.ReloadFromDB(func(key string) (string, error) {
 			var opt Option
-			if err := DB.Where("key = ?", key).First(&opt).Error; err != nil {
+			if err := DB.Where("`key` = ?", key).First(&opt).Error; err != nil {
 				return "", err
 			}
 			return opt.Value, nil
