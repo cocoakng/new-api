@@ -229,7 +229,7 @@ export function resolveMatchedTier(
 export interface TieredBillingSummary {
   tiers: ParsedTier[]
   tier: ParsedTier
-  priceEntries: Array<{ field: string; shortLabel: string; price: number }>
+  priceEntries: Array<{ field: string; shortLabel: string; price: number; isPerSecond?: boolean }>
 }
 
 /**
@@ -252,7 +252,7 @@ export function hasAnyCacheTokens(
 export function getTieredBillingSummary(
   other: LogOtherData | null
 ): TieredBillingSummary | null {
-  if (!other || other.billing_mode !== 'tiered_expr') return null
+  if (!other || (other.billing_mode !== 'tiered_expr' && other.billing_mode !== 'per_second')) return null
   const exprStr = decodeBillingExprB64(other.expr_b64)
   if (!exprStr) return null
   const tiers = parseTiersFromExpr(exprStr)
@@ -272,6 +272,7 @@ export function getTieredBillingSummary(
         field: v.field,
         shortLabel: v.shortLabel,
         price,
+        isPerSecond: (v as any).isPerSecond || false,
       })
     }
   }

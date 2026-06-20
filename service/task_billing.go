@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -61,6 +62,12 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	if info.IsModelMapped {
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = info.UpstreamModelName
+	}
+	// Inject tiered billing info for per_second/per_call/tiered_expr billing
+	if info.TieredBillingSnapshot != nil && info.TieredBillingSnapshot.BillingMode != "" {
+		other["billing_mode"] = info.TieredBillingSnapshot.BillingMode
+		other["expr_b64"] = base64.StdEncoding.EncodeToString([]byte(info.TieredBillingSnapshot.ExprString))
+		other["matched_tier"] = info.TieredBillingSnapshot.EstimatedTier
 	}
 	model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
 		ChannelId: info.ChannelId,
@@ -141,6 +148,12 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 			for k, v := range bc.OtherRatios {
 				other[k] = v
 			}
+		}
+		// Include tiered billing info if available
+		if bc.BillingMode != "" {
+			other["billing_mode"] = bc.BillingMode
+			other["expr_b64"] = base64.StdEncoding.EncodeToString([]byte(bc.ExprString))
+			other["matched_tier"] = bc.ExprHash // not the actual tier, but best we have in context
 		}
 	}
 	props := task.Properties

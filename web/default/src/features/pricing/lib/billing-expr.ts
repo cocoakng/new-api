@@ -41,6 +41,7 @@ export type BillingVar = {
   side: 'input' | 'output' | 'condition'
   isBase?: boolean
   isConditionOnly?: boolean
+  isPerSecond?: boolean
   group?: string
 }
 
@@ -134,6 +135,15 @@ export const BILLING_VARS: BillingVar[] = [
     shortLabel: 'Audio Out',
     side: 'output',
     group: 'media',
+  },
+  {
+    key: 'duration',
+    field: 'durationPrice',
+    tierField: 'duration_unit_cost',
+    label: 'Duration price',
+    shortLabel: 'Duration',
+    side: 'input',
+    isPerSecond: true,
   },
 ]
 

@@ -2324,14 +2324,16 @@ export function renderTieredModelPrice(opts) {
 
   const priceLines = BILLING_PRICING_VARS
       .filter((v) => v.group !== 'cache' || hasAnyCacheTokens)
-      .map((v) => [v.field, v.label]);
+      .map((v) => [v.field, v.label, v.isPerSecond]);
 
   const lines = [
     buildBillingText('命中档位：{{tier}}', { tier: matchedTier || tier.label }),
     ...priceLines
         .filter(([field]) => tier[field] > 0)
-        .map(([field, label]) =>
-            buildBillingPriceText(`${label}：{{symbol}}{{price}} / 1M tokens`, { symbol, usdAmount: tier[field], rate }),
+        .map(([field, label, isPerSecond]) =>
+            isPerSecond
+                ? buildBillingPriceText(`${label}：{{symbol}}{{price}} / 秒`, { symbol, usdAmount: tier[field], rate })
+                : buildBillingPriceText(`${label}：{{symbol}}{{price}} / 1M tokens`, { symbol, usdAmount: tier[field], rate }),
         ),
   ];
 
@@ -2381,15 +2383,20 @@ export function renderTieredModelPriceSimple(opts) {
           || cacheCreationTokens5m > 0 || cacheCreationTokens1h > 0;
       const priceSegments = BILLING_PRICING_VARS
           .filter((v) => v.group !== 'cache' || hasAnyCacheTokens)
-          .map((v) => [v.field, v.shortLabel]);
-      for (const [field, label] of priceSegments) {
+          .map((v) => [v.field, v.shortLabel, v.isPerSecond]);
+      for (const [field, label, isPerSecond] of priceSegments) {
         if (tier[field] > 0) {
           segments.push({
             tone: 'secondary',
-            text: i18next.t('{{label}} {{price}} / 1M tokens', {
-              label: i18next.t(label),
-              price: formatCompactDisplayPrice(tier[field]),
-            }),
+            text: isPerSecond
+                ? i18next.t('{{label}} {{price}} / 秒', {
+                    label: i18next.t(label),
+                    price: formatCompactDisplayPrice(tier[field]),
+                  })
+                : i18next.t('{{label}} {{price}} / 1M tokens', {
+                    label: i18next.t(label),
+                    price: formatCompactDisplayPrice(tier[field]),
+                  }),
           });
         }
       }

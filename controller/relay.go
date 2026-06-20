@@ -645,6 +645,7 @@ func RelayTask(c *gin.Context) {
 		}
 		// Store tiered expression info for settlement at task completion
 		if relayInfo.TieredBillingSnapshot != nil {
+			task.PrivateData.BillingContext.BillingMode = relayInfo.TieredBillingSnapshot.BillingMode
 			task.PrivateData.BillingContext.ExprString = relayInfo.TieredBillingSnapshot.ExprString
 			task.PrivateData.BillingContext.ExprHash = relayInfo.TieredBillingSnapshot.ExprHash
 		}

@@ -21,6 +21,7 @@ export const BILLING_VARS = [
   { key: 'img_o', field: 'imageOutputPrice', tierField: 'image_output_unit_cost', label: '图片输出价格', shortLabel: '图片输出', side: 'output', group: 'media' },
   { key: 'ai', field: 'audioInputPrice', tierField: 'audio_input_unit_cost', label: '音频输入价格', shortLabel: '音频输入', side: 'input', group: 'media' },
   { key: 'ao', field: 'audioOutputPrice', tierField: 'audio_output_unit_cost', label: '音频补全价格', shortLabel: '音频输出', side: 'output', group: 'media' },
+  { key: 'duration', field: 'durationPrice', tierField: 'duration_unit_cost', label: '时长价格', shortLabel: '时长', side: 'input', isPerSecond: true },
 ];
 
 export const BILLING_VAR_KEYS = BILLING_VARS.map((v) => v.key);

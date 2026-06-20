@@ -469,7 +469,7 @@ export const useLogsData = () => {
           Boolean(other?.violation_fee_marker);
 
         let content = '';
-        if (!isViolationFeeLog && other?.billing_mode !== 'tiered_expr') {
+        if (!isViolationFeeLog && other?.billing_mode !== 'tiered_expr' && other?.billing_mode !== 'per_second') {
           const logOpts = {
             ...other,
             prompt_tokens: logs[i].prompt_tokens,
@@ -497,7 +497,7 @@ export const useLogsData = () => {
             value: other.reasoning_effort,
           });
         }
-        if (other?.billing_mode === 'tiered_expr' && other?.expr_b64) {
+        if ((other?.billing_mode === 'tiered_expr' || other?.billing_mode === 'per_second') && other?.expr_b64) {
           expandDataLocal.push({
             key: t('计费过程'),
             value: renderTieredModelPrice({
