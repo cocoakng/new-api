@@ -196,10 +196,13 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 
 	// 6. 将 OtherRatios 应用到基础额度
 	//    per_call_matrix 计费时，价格已包含 duration/resolution 维度，不应再乘 OtherRatios
+	//    per_second 计费时，表达式已包含 duration，不应再乘 seconds ratio
 	if !common.StringsContains(constant.TaskPricePatches, modelName) {
-		isPerCallMatrix := info.TieredBillingSnapshot != nil &&
-			info.TieredBillingSnapshot.BillingMode == billing_setting.BillingModePerCall
-		if !isPerCallMatrix {
+		if info.TieredBillingSnapshot != nil &&
+			(info.TieredBillingSnapshot.BillingMode == billing_setting.BillingModePerCall ||
+				info.TieredBillingSnapshot.BillingMode == billing_setting.BillingModePerSecond) {
+			// skip OtherRatios multiplication
+		} else {
 			for _, ra := range info.PriceData.OtherRatios {
 				if ra != 1.0 {
 					info.PriceData.Quota = int(float64(info.PriceData.Quota) * ra)

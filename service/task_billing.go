@@ -26,6 +26,11 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 		info.TieredBillingSnapshot.EstimatedTier != "" {
 		tier := info.TieredBillingSnapshot.EstimatedTier // e.g. "720p_8s"
 		logContent = fmt.Sprintf("%s，按次计费（%s）", logContent, tier)
+	} else if info.TieredBillingSnapshot != nil &&
+		info.TieredBillingSnapshot.BillingMode == "per_second" &&
+		info.TieredBillingSnapshot.EstimatedTier != "" {
+		tier := info.TieredBillingSnapshot.EstimatedTier
+		logContent = fmt.Sprintf("%s，按秒计费（%s）", logContent, tier)
 	} else if common.StringsContains(constant.TaskPricePatches, info.OriginModelName) {
 		// 支持任务仅按次计费
 		logContent = fmt.Sprintf("%s，按次计费", logContent)
