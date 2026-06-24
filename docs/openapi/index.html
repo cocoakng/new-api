@@ -57,6 +57,10 @@
 <script>
 window.addEventListener('load', function() {
   const cleanup = () => {
+    // 隐藏 "Open API Client" 按钮（链接到 scalar.com 的）
+    document.querySelectorAll('a[href*="scalar.com"], a[href*="client.scalar.com"]').forEach(function(el) {
+      el.style.display = 'none';
+    });
     // 右上角按钮：隐藏非 Configure 的按钮
     document.querySelectorAll('header button:not(.btn-configure)').forEach(function(el) {
       if (el.textContent.trim() !== 'Configure' && el.textContent.trim() !== '配置') {
@@ -86,15 +90,12 @@ window.addEventListener('load', function() {
         el.style.display = 'none';
       }
     });
-    // 隐藏 codegen/plugin/mcp 相关 class 的元素
+    // 隐藏 codegen/plugin/mcp 相关 class 的元素（仅 MCP/plugin，保留代码示例）
     document.querySelectorAll('[class*="codegen"], [class*="plugin"], [class*="mcp"], [class*="Mcp"], [class*="generate"]').forEach(function(el) {
-      // 只隐藏按钮级别的元素，不隐藏内容区域
-      if (el.tagName === 'BUTTON' || el.tagName === 'A' || (el.tagName === 'DIV' && el.children.length < 5)) {
-        // 检查是否是 MCP 相关的
-        var cls = (el.className || '').toLowerCase();
-        if (cls.includes('mcp') || cls.includes('codegen') || cls.includes('plugin')) {
-          el.style.display = 'none';
-        }
+      // 只隐藏 MCP 相关的，不隐藏代码示例（codegen 是 Scalar 代码示例的 class）
+      var cls = (el.className || '').toLowerCase();
+      if (cls.includes('mcp') || cls.includes('plugin')) {
+        el.style.display = 'none';
       }
     });
     // 替换侧边栏底部 "Powered by Scalar" 为 "Powered by AI Link"
