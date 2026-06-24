@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>视频生成 API 文档 — AI Link</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #f8f9fa;
+    }
+
+    .topbar { background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); padding: 0 24px; display: flex; align-items: center; height: 52px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+    .topbar .logo { color: #fff; font-size: 16px; font-weight: 700; text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="logo" href="./">AI Link</a>
+  <div class="doc-tabs">
+    <a class="tab active" href="./" data-doc="video.json">视频生成</a>
+    <a class="tab" href="./?doc=image" data-doc="image.json">图像生成</a>
+  </div>
+</div>
+
+<div id="api-reference" data-url="./video.json" data-footer="AI Link"></div>
+
+<script>
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var doc = params.get('doc');
+  if (doc === 'image') {
+    document.getElementById('api-reference').setAttribute('data-url', './image.json');
+    document.title = '图像生成 API 文档 — AI Link';
+    document.querySelectorAll('.tab').forEach(function(el) {
+      el.classList.remove('active');
+      if (el.getAttribute('data-doc') === 'image.json') el.classList.add('active');
+    });
+  }
+})();
+</script>
+
+<style>
+.doc-tabs { display: flex; margin-left: 24px; gap: 0; }
+.tab {
+  color: rgba(255,255,255,0.7); text-decoration: none; padding: 16px 16px;
+  font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+.tab:hover { color: #fff; }
+.tab.active { color: #fff; border-bottom-color: #fff; }
+</style>
+
+<script src="https://registry.npmmirror.com/@scalar/api-reference/1.61.0/files/dist/browser/standalone.js"></script>
+<script>
+window.addEventListener('load', function() {
+  const cleanup = () => {
+    // 右上角按钮：隐藏非 Configure 的按钮
+    document.querySelectorAll('header button:not(.btn-configure)').forEach(function(el) {
+      if (el.textContent.trim() !== 'Configure' && el.textContent.trim() !== '配置') {
+        el.style.display = 'none';
+      } else {
+        el.textContent = '配置';
+        el.classList.add('btn-configure');
+      }
+    });
+    // 隐藏 MCP 相关按钮（按 href 匹配）
+    document.querySelectorAll('a[href*="mcp"]').forEach(function(el) {
+      el.style.display = 'none';
+    });
+    // 隐藏包含 "generate" 文本的按钮/链接
+    document.querySelectorAll('a, button, [role="button"]').forEach(function(el) {
+      if (el.textContent.trim().toLowerCase().includes('generate')) {
+        el.style.display = 'none';
+      }
+    });
+    // 按文本内容匹配 "MCP" 的元素
+    document.querySelectorAll('a, button, span, div').forEach(function(el) {
+      if (el.children.length === 0 && el.textContent.trim().toLowerCase().includes('mcp')) {
+        el.style.display = 'none';
+      }
+      // 也检查包含 MCP 的链接
+      if (el.tagName === 'A' && el.textContent.trim().toLowerCase().includes('mcp')) {
+        el.style.display = 'none';
+      }
+    });
+    // 隐藏 codegen/plugin/mcp 相关 class 的元素
+    document.querySelectorAll('[class*="codegen"], [class*="plugin"], [class*="mcp"], [class*="Mcp"], [class*="generate"]').forEach(function(el) {
+      // 只隐藏按钮级别的元素，不隐藏内容区域
+      if (el.tagName === 'BUTTON' || el.tagName === 'A' || (el.tagName === 'DIV' && el.children.length < 5)) {
+        // 检查是否是 MCP 相关的
+        var cls = (el.className || '').toLowerCase();
+        if (cls.includes('mcp') || cls.includes('codegen') || cls.includes('plugin')) {
+          el.style.display = 'none';
+        }
+      }
+    });
+    // 替换侧边栏底部 "Powered by Scalar" 为 "Powered by AI Link"
+    document.querySelectorAll('a[href*="scalar"], a[href*="scalar.com"]').forEach(function(el) {
+      var text = el.textContent.trim().toLowerCase();
+      if (text.includes('powered') || text.includes('scalar')) {
+        el.href = 'https://www.ai-link.shop/';
+        el.textContent = 'Powered by AI Link';
+        el.target = '_blank';
+      }
+    });
+    // 也隐藏可能包含 "Powered by" 文本的容器
+    document.querySelectorAll('[class*="powered"], [class*="sidebar-footer"]').forEach(function(el) {
+      el.style.display = 'none';
+    });
+    // 隐藏 Client Libraries 区域（oneOf 模式下代码生成不正常）
+    document.querySelectorAll('[class*="client-lib"], [class*="ClientLib"], [class*="clientlib"]').forEach(function(el) {
+      el.style.display = 'none';
+    });
+    // "Introduction" → "简介"
+    document.querySelectorAll('div, span, h1, h2, h3, a, button').forEach(function(el) {
+      if (el.children.length === 0 && el.textContent.trim() === 'Introduction') {
+        el.textContent = '简介';
+      }
+      // "One of" 下拉标签 → "选择模型"
+      if (el.children.length === 0 && (el.textContent.trim() === 'One of' || el.textContent.trim() === 'oneOf')) {
+        el.textContent = '选择模型';
+      }
+    });
+  };
+
+  cleanup();
+
+  const observer = new MutationObserver(cleanup);
+  observer.observe(document.body, { childList: true, subtree: true });
+});
+</script>
+
+</body>
+</html>

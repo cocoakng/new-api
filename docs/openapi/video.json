@@ -1,0 +1,584 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "视频生成 API",
+    "description": "支持文生视频、图生视频、首尾帧控制等场景，覆盖可灵 Kling、Vidu、Grok、豆包 Seedance 等主流视频生成模型。\n\n## 调用流程\n\n```\n1. POST /v1/videos  → 提交任务，获得 task_id\n2. GET /v1/videos/{task_id}  → 轮询状态，等待 status = \"completed\"\n3. GET /v1/videos/{task_id}/content  → 下载视频文件\n```\n\n## 认证方式\n\n所有请求需在 Header 中携带 API Key：\n\n```\nAuthorization: Bearer YOUR_API_KEY\n```\n\n## 可用模型\n\n| 模型 | 分辨率/模式 | 时长 | 图生视频 | 特殊参数 |\n|------|------------|------|----------|----------|\n| `kling-v3` | mode: std(720p) / pro(1080p) | 3-15s | 支持（reference_images / image_with_roles） | `mode`, `audio`, `metadata` |\n| `viduq3` | 720p / 1080p | 1-16s / 3-16s | 支持（image_urls，首尾帧 2 张） | `resolution`, `audio`, `seed`, `metadata` |\n| `grok-video-3` | 480p / 720p | 6s / 10s / 15s | 支持（images） | `seconds`, `resolution`, `aspect_ratio` |\n| `seedance-2-fast` | 480p / 720p | 4-15s / 自动 | 支持（image_with_roles / video_with_roles） | `resolution`, `generate_audio`, `seed` |",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://www.ai-link.shop",
+      "description": "API Base URL"
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "视频生成",
+      "description": "视频生成任务提交、查询、下载"
+    }
+  ],
+  "paths": {
+    "/v1/videos": {
+      "post": {
+        "summary": "提交视频生成任务",
+        "description": "提交一个视频生成任务，返回任务 ID，用于后续状态查询和视频下载。\n\n通过 `model` 字段选择模型，不同模型支持的参数不同，请在下方选择模型查看具体字段。",
+        "operationId": "createVideo",
+        "tags": ["视频生成"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "discriminator": {
+                  "propertyName": "model",
+                  "mapping": {
+                    "kling-v3": "#/components/schemas/KlingV3Request",
+                    "viduq3": "#/components/schemas/ViduQ3Request",
+                    "grok-video-3": "#/components/schemas/GrokVideo3Request",
+                    "seedance-2-fast": "#/components/schemas/Seedance2FastRequest"
+                  }
+                },
+                "oneOf": [
+                  { "$ref": "#/components/schemas/KlingV3Request" },
+                  { "$ref": "#/components/schemas/ViduQ3Request" },
+                  { "$ref": "#/components/schemas/GrokVideo3Request" },
+                  { "$ref": "#/components/schemas/Seedance2FastRequest" }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务提交成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoTaskResponse"
+                },
+                "example": {
+                  "id": "task_xxxxxxxxxxxxxx",
+                  "object": "generation.task",
+                  "model": "kling-v3",
+                  "status": "queued",
+                  "progress": 0,
+                  "created_at": 1781610285
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/videos/{task_id}": {
+      "get": {
+        "summary": "查询任务状态",
+        "description": "根据任务 ID 查询视频生成状态。",
+        "operationId": "getVideoStatus",
+        "tags": ["视频生成"],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "description": "提交任务时返回的任务 ID",
+            "schema": { "type": "string" },
+            "example": "task_xxxxxxxxxxxxxx"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VideoTaskStatusResponse" },
+                "example": {
+                  "id": "task_xxxxxxxxxxxxxx",
+                  "object": "generation.task",
+                  "model": "kling-v3",
+                  "status": "completed",
+                  "progress": 100,
+                  "created_at": 1781610285,
+                  "completed_at": 1781610345,
+                  "result": {
+                    "type": "video",
+                    "data": [{ "format": "mp4", "url": "https://cdn.example.com/video.mp4" }]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/videos/{task_id}/content": {
+      "get": {
+        "summary": "下载视频",
+        "description": "下载已完成的视频文件。返回 video/mp4 二进制数据。",
+        "operationId": "downloadVideo",
+        "tags": ["视频生成"],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "description": "已完成的视频任务 ID",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "视频二进制数据",
+            "content": {
+              "video/mp4": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "在 Authorization Header 中填入 API Key"
+      }
+    },
+    "schemas": {
+
+      "ImageWithRole": {
+        "type": "object",
+        "description": "带角色的图片对象",
+        "required": ["url", "role"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "图片 URL（需公网可访问）"
+          },
+          "role": {
+            "type": "string",
+            "description": "图片角色",
+            "enum": ["first_frame", "last_frame", "reference", "reference_image"]
+          }
+        }
+      },
+
+      "KlingV3Request": {
+        "title": "kling-v3",
+        "type": "object",
+        "required": ["model", "prompt"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "固定值 `kling-v3`",
+            "example": "kling-v3"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "视频提示词。建议描述主体、动作、场景、镜头语言和风格",
+            "example": "一只金色的猫咪在阳光下的草地上奔跑，慢动作，电影质感"
+          },
+          "mode": {
+            "type": "string",
+            "description": "生成模式。`std` = 标准模式（720P），`pro` = 专业模式（1080P）",
+            "enum": ["std", "pro"],
+            "default": "std",
+            "example": "std"
+          },
+          "duration": {
+            "type": "integer",
+            "description": "视频时长（秒）。可选值：3、4、5、6、7、8、9、10、11、12、13、14、15",
+            "default": 5,
+            "example": 5
+          },
+          "aspect_ratio": {
+            "type": "string",
+            "description": "视频宽高比。常用值：16:9（横屏）、9:16（竖屏）、1:1（方形）",
+            "enum": ["16:9", "9:16", "1:1"],
+            "default": "16:9",
+            "example": "16:9"
+          },
+          "reference_images": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "description": "普通参考图 URL 数组。仅表示参考图语义，不会自动将第二张推断为尾帧。首尾帧请使用 image_with_roles",
+            "example": ["https://example.com/reference.jpg"]
+          },
+          "image_with_roles": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ImageWithRole" },
+            "description": "显式图片角色数组，用于首尾帧控制或混合输入。role 可选：first_frame（首帧）、last_frame（尾帧）、reference / reference_image（参考图）",
+            "example": [
+              { "url": "https://example.com/start.jpg", "role": "first_frame" },
+              { "url": "https://example.com/end.jpg", "role": "last_frame" }
+            ]
+          },
+          "audio": {
+            "type": "boolean",
+            "description": "是否生成有声视频。生成有声视频会按 Sound 价格计费",
+            "default": false,
+            "example": false
+          },
+          "metadata": {
+            "type": "object",
+            "description": "扩展参数",
+            "properties": {
+              "negative_prompt": {
+                "type": "string",
+                "description": "负面提示词，描述不希望出现的内容"
+              },
+              "watermark": {
+                "type": "boolean",
+                "description": "是否添加水印"
+              }
+            }
+          }
+        },
+        "example": {
+          "model": "kling-v3",
+          "prompt": "一只金色的猫咪在阳光下的草地上奔跑，慢动作，电影质感",
+          "mode": "std",
+          "duration": 5,
+          "aspect_ratio": "16:9"
+        }
+      },
+
+      "ViduQ3Request": {
+        "title": "viduq3",
+        "type": "object",
+        "required": ["model", "prompt"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Vidu Q3 模型名称。可选：`viduq3-pro`（高质量）、`viduq3-turbo`（快速，性价比最高）、`viduq3`（多参考图/Subjects 生成）",
+            "enum": ["viduq3-pro", "viduq3-turbo", "viduq3"],
+            "example": "viduq3-pro"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "视频提示词，最大 5000 字符。描述主体、动作、场景、镜头和风格。使用 subjects 时可通过 @name 引用主体",
+            "example": "一只猫咪在弹钢琴，镜头缓缓推近，电影质感"
+          },
+          "duration": {
+            "type": "integer",
+            "description": "视频时长（秒）。viduq3-pro / viduq3-turbo：1-16；viduq3：3-16",
+            "default": 5,
+            "example": 8
+          },
+          "resolution": {
+            "type": "string",
+            "description": "视频分辨率。可选值：720p、1080p",
+            "enum": ["720p", "1080p"],
+            "default": "720p",
+            "example": "720p"
+          },
+          "aspect_ratio": {
+            "type": "string",
+            "description": "视频宽高比。常用值：16:9（横屏）、9:16（竖屏）、1:1（方形）。Q3 系列支持任意宽高比",
+            "enum": ["16:9", "9:16", "1:1"],
+            "example": "16:9"
+          },
+          "image_urls": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "description": "参考图片 URL 数组。viduq3-pro/turbo：不传=文生视频，1张=首帧，2张=首尾帧。viduq3：必填，最多7张",
+            "example": ["https://example.com/reference.jpg"]
+          },
+          "audio": {
+            "type": "boolean",
+            "description": "是否启用音视频输出。所有 Q3 模型默认为 true",
+            "example": true
+          },
+          "seed": {
+            "type": "integer",
+            "description": "随机种子，用于在相同参数下复现相近结果"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "扩展参数",
+            "properties": {
+              "subjects": {
+                "type": "array",
+                "description": "主体列表（Subjects 模式，仅 viduq3 支持）。最多 7 个主体，每个主体最多 3 张图片，在 prompt 中通过 @name 引用",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string" },
+                    "images": { "type": "array", "items": { "type": "string", "format": "uri" } }
+                  }
+                }
+              },
+              "auto_subjects": {
+                "type": "boolean",
+                "description": "是否启用智能实体库能力，默认 false"
+              },
+              "voice_id": {
+                "type": "string",
+                "description": "语音 ID，用于指定视频中的语音角色"
+              },
+              "audio_type": {
+                "type": "string",
+                "description": "音频类型（audio=true 时有效）。可选：all（音效+人声，默认）、speech_only（仅人声）、sound-effect_only（仅音效）",
+                "enum": ["all", "speech_only", "sound-effect_only"]
+              },
+              "off_peak": {
+                "type": "boolean",
+                "description": "闲时模式，默认 false。true 时生成消耗更少积分，48 小时内未完成自动取消并退还"
+              },
+              "payload": {
+                "type": "string",
+                "description": "透传参数，最大 1048576 字符"
+              },
+              "callback_url": {
+                "type": "string",
+                "description": "回调地址。任务状态变更时系统将向此 URL 发送 POST 回调"
+              }
+            }
+          }
+        },
+        "example": {
+          "model": "viduq3-pro",
+          "prompt": "一只猫咪在弹钢琴，镜头缓缓推近，电影质感",
+          "duration": 8,
+          "resolution": "1080p",
+          "aspect_ratio": "16:9",
+          "audio": true
+        }
+      },
+
+      "GrokVideo3Request": {
+        "title": "grok-video-3",
+        "type": "object",
+        "required": ["model", "prompt"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "固定值 `grok-video-3`",
+            "example": "grok-video-3"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "视频生成的文本描述",
+            "example": "一只金毛犬在草地上奔跑，阳光明媚"
+          },
+          "seconds": {
+            "type": "string",
+            "description": "视频时长（秒）。可选值：\"6\"、\"10\"、\"15\"",
+            "enum": ["6", "10", "15"],
+            "default": "10",
+            "example": "10"
+          },
+          "resolution": {
+            "type": "string",
+            "description": "视频分辨率。可选值：480p、720p",
+            "enum": ["480p", "720p"],
+            "default": "720p",
+            "example": "720p"
+          },
+          "aspect_ratio": {
+            "type": "string",
+            "description": "视频宽高比。可选：16:9（横屏）、9:16（竖屏）、3:2（横屏）、2:3（竖屏）、1:1（方形）",
+            "enum": ["16:9", "9:16", "3:2", "2:3", "1:1"],
+            "default": "16:9",
+            "example": "16:9"
+          },
+          "images": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "description": "用于图生视频的参考图像 URL 数组。仅支持 URL 格式（不再支持 base64）。最少 1 张，最多 3 张",
+            "example": ["https://example.com/dog.jpg"]
+          }
+        },
+        "example": {
+          "model": "grok-video-3",
+          "prompt": "一只金毛犬在草地上奔跑，阳光明媚",
+          "seconds": "10",
+          "resolution": "720p",
+          "aspect_ratio": "16:9"
+        }
+      },
+
+      "Seedance2FastRequest": {
+        "title": "seedance-2-fast",
+        "type": "object",
+        "required": ["model", "prompt"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "固定值 `seedance-2-fast`",
+            "example": "seedance-2-fast"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "视频内容描述。支持中英文，建议明确描述场景、镜头运动、主体动作、风格和声音氛围。中文建议 500 字以内",
+            "example": "一只柴犬在雨后的霓虹街头奔跑，地面倒映彩色灯光"
+          },
+          "client_business_id": {
+            "type": "string",
+            "description": "客户侧业务 ID（如订单号、流水号）。提交后随任务保存，可用该 ID 查询状态"
+          },
+          "duration": {
+            "type": "integer",
+            "description": "视频时长（秒）。seedance-2-fast：4-15。0 或 -1 表示自动时长",
+            "default": 0,
+            "example": 5
+          },
+          "aspect_ratio": {
+            "type": "string",
+            "description": "视频宽高比。可选：21:9、16:9、4:3、1:1、3:4、9:16",
+            "enum": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+            "example": "16:9"
+          },
+          "image_urls": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "description": "兼容模式下的图片 URL 数组。传 1 张通常按首帧处理，传多张可能产生歧义。不建议与新接入使用，请改用 image_with_roles"
+          },
+          "image_with_roles": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ImageWithRole" },
+            "description": "带角色的图片数组。支持 first_frame（首帧，最多1张）、last_frame（尾帧，最多1张）、reference_image（参考图，最多9张）。首帧/首尾帧模式不能与参考模式混用",
+            "example": [
+              { "url": "https://example.com/first.png", "role": "first_frame" },
+              { "url": "https://example.com/last.png", "role": "last_frame" }
+            ]
+          },
+          "video_with_roles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["url", "role"],
+              "properties": {
+                "url": { "type": "string", "format": "uri", "description": "视频 URL" },
+                "role": { "type": "string", "enum": ["reference_video"], "description": "固定为 reference_video" }
+              }
+            },
+            "description": "带角色的视频数组。当前仅支持多模态参考模式使用 reference_video"
+          },
+          "audio_with_roles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["url", "role"],
+              "properties": {
+                "url": { "type": "string", "description": "音频 URL 或 base64 数据" },
+                "role": { "type": "string", "enum": ["reference_audio"], "description": "固定为 reference_audio" }
+              }
+            },
+            "description": "带角色的音频数组。不能单独使用，至少还需要一个图片或视频参考输入"
+          },
+          "resolution": {
+            "type": "string",
+            "description": "视频分辨率。seedance-2-fast 可选：480p、720p",
+            "enum": ["480p", "720p"],
+            "default": "720p",
+            "example": "720p"
+          },
+          "generate_audio": {
+            "type": "boolean",
+            "description": "是否生成同步音频。true = 生成带音频的视频，false = 生成无声视频",
+            "default": true,
+            "example": true
+          },
+          "seed": {
+            "type": "integer",
+            "description": "随机种子，用于控制生成随机性"
+          },
+          "callback_url": {
+            "type": "string",
+            "description": "异步任务回调地址。需与 trace_id 一起传递时才生效"
+          },
+          "trace_id": {
+            "type": "string",
+            "description": "调用方自定义透传 ID。回调触发时会原样返回，需与 callback_url 一起传递时才生效"
+          }
+        },
+        "example": {
+          "model": "seedance-2-fast",
+          "prompt": "一只柴犬在雨后的霓虹街头奔跑，地面倒映彩色灯光",
+          "duration": 5,
+          "aspect_ratio": "16:9",
+          "resolution": "720p"
+        }
+      },
+
+      "VideoTaskResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "任务 ID" },
+          "object": { "type": "string", "example": "generation.task" },
+          "model": { "type": "string", "description": "使用的模型名称" },
+          "status": {
+            "type": "string",
+            "enum": ["queued", "in_progress", "completed", "failed"]
+          },
+          "progress": { "type": "integer", "description": "任务进度，提交成功时通常为 0" },
+          "created_at": { "type": "integer", "description": "任务创建时间戳（Unix 时间戳）" },
+          "metadata": { "type": "object", "description": "任务元数据" }
+        }
+      },
+
+      "VideoTaskStatusResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "任务 ID" },
+          "client_business_id": { "type": "string", "description": "客户侧业务 ID（请求中传入时返回）" },
+          "object": { "type": "string", "example": "generation.task" },
+          "model": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["queued", "in_progress", "completed", "failed"]
+          },
+          "progress": { "type": "integer", "description": "任务进度百分比（0-100）" },
+          "created_at": { "type": "integer" },
+          "completed_at": { "type": "integer", "description": "完成时间戳" },
+          "expires_at": { "type": "integer", "description": "过期时间戳" },
+          "result": {
+            "type": "object",
+            "description": "生成结果（completed 时返回）",
+            "properties": {
+              "type": { "type": "string", "example": "video" },
+              "data": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "format": { "type": "string", "example": "mp4" },
+                    "url": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "error": {
+            "type": "object",
+            "description": "错误信息（failed 时返回）",
+            "properties": { "message": { "type": "string" } }
+          }
+        }
+      },
+
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": { "type": "string" },
+              "code": { "type": "integer" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

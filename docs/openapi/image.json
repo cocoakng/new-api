@@ -1,0 +1,339 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "图像生成 API",
+    "description": "支持文生图和图生图。\n\n## 调用方式\n\n```\nPOST /v1/images/generations  → 文生图 / 图生图（JSON 请求体，参考图片传 URL）\nPOST /v1/images/edits        → 图生图（multipart/form-data，参考图片传二进制文件）\n```\n\n## 认证方式\n\n所有请求需在 Header 中携带 API Key：\n\n```\nAuthorization: Bearer YOUR_API_KEY\n```\n\n## 可用模型\n\n| 模型 | 说明 |\n|------|------|\n| `gpt-image-2` | 通用图像生成 |",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://www.ai-link.shop",
+      "description": "API Base URL"
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "图像生成",
+      "description": "图像生成任务"
+    }
+  ],
+  "paths": {
+    "/v1/images/generations": {
+      "post": {
+        "summary": "生成图像（JSON 模式）",
+        "description": "根据文本提示生成图像。图生图时参考图片通过 URL 传入。",
+        "operationId": "generateImage",
+        "tags": ["图像生成"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GPTImage2Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "生成成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageResponse"
+                },
+                "example": {
+                  "created": 1781610285,
+                  "data": [
+                    { "url": "https://example.com/generated-image.png" }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/images/edits": {
+      "post": {
+        "summary": "编辑图像（multipart 模式）",
+        "description": "基于参考图片生成新图像。参考图片和遮罩以二进制文件形式上传。",
+        "operationId": "editImage",
+        "tags": ["图像生成"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageEditRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "编辑成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "在 Authorization Header 中填入 API Key"
+      }
+    },
+    "schemas": {
+      "GPTImage2Request": {
+        "title": "gpt-image-2（JSON 模式）",
+        "type": "object",
+        "required": ["model", "prompt"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "固定值 `gpt-image-2`",
+            "example": "gpt-image-2"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "图片生成提示词。建议写清主体、场景、风格、构图和画质要求",
+            "example": "一只在星空下奔跑的白色独角兽，梦幻风格，高清"
+          },
+          "n": {
+            "type": "integer",
+            "description": "生成图片数量",
+            "default": 1,
+            "minimum": 1,
+            "maximum": 10,
+            "example": 1
+          },
+          "size": {
+            "type": "string",
+            "description": "图片尺寸。支持任意 `宽x高` 格式（如 `1536x864`），宽高需在 256-4096 之间。也支持 `auto`（默认 1:1）",
+            "default": "auto",
+            "example": "1024x1024"
+          },
+          "quality": {
+            "type": "string",
+            "description": "图片质量",
+            "default": "auto",
+            "enum": ["auto", "high", "medium", "low"]
+          },
+          "response_format": {
+            "type": "string",
+            "description": "响应格式，传 `url` 返回图片链接",
+            "enum": ["url"],
+            "example": "url"
+          },
+          "image": {
+            "type": "string",
+            "format": "uri",
+            "description": "参考图片 URL（图生图模式）。传入参考图片后，模型将基于该图片生成新图像",
+            "example": "https://example.com/reference.jpg"
+          },
+          "images": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "description": "参考图片 URL 数组（图生图模式）。支持传入多张参考图片",
+            "example": ["https://example.com/ref1.jpg", "https://example.com/ref2.jpg"]
+          },
+          "mask": {
+            "type": "string",
+            "format": "uri",
+            "description": "遮罩图片 URL，用于指定图生图中需要修改的区域"
+          },
+          "input_fidelity": {
+            "type": "number",
+            "description": "图生图输入保真度。值越大，生成结果与参考图片越接近",
+            "minimum": 0,
+            "maximum": 1,
+            "example": 0.8
+          },
+          "watermark": {
+            "type": "boolean",
+            "description": "是否添加水印",
+            "default": false
+          },
+          "output_format": {
+            "type": "string",
+            "description": "输出图片格式",
+            "default": "png",
+            "enum": ["png", "jpeg", "webp"]
+          },
+          "output_compression": {
+            "type": "integer",
+            "description": "输出图片压缩比例（0-100）。仅在 output_format 为 jpeg 或 webp 时生效",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 100
+          },
+          "background": {
+            "type": "string",
+            "description": "背景设置。注意：gpt-image-2 目前不支持透明背景",
+            "enum": ["auto", "opaque", "transparent"],
+            "default": "opaque"
+          },
+          "moderation": {
+            "type": "string",
+            "description": "内容审核级别",
+            "default": "auto",
+            "enum": ["auto", "low"]
+          },
+          "user": {
+            "type": "string",
+            "description": "终端用户唯一标识，用于监控和检测滥用行为"
+          },
+          "style": {
+            "type": "string",
+            "description": "图片风格。该参数仅对 dall-e-3 生效（vivid/natural），gpt-image-2 忽略"
+          },
+          "stream": {
+            "type": "boolean",
+            "description": "是否使用流式输出",
+            "default": false
+          }
+        },
+        "example": {
+          "model": "gpt-image-2",
+          "prompt": "一只在星空下奔跑的白色独角兽，梦幻风格，高清",
+          "n": 1,
+          "size": "1024x1024"
+        }
+      },
+      "ImageEditRequest": {
+        "title": "gpt-image-2（multipart 模式）",
+        "type": "object",
+        "required": ["model", "prompt", "image"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "固定值 `gpt-image-2`",
+            "example": "gpt-image-2"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "编辑指令。描述希望对图片进行的修改",
+            "example": "给这只猫加一顶红色帽子"
+          },
+          "image": {
+            "type": "string",
+            "format": "binary",
+            "description": "参考图片文件（PNG 或 JPG，最大 10MB）。单张图时使用此字段"
+          },
+          "images": {
+            "type": "array",
+            "items": { "type": "string", "format": "binary" },
+            "description": "参考图片文件数组（PNG 或 JPG，每张最大 10MB）。多张图时使用此字段"
+          },
+          "mask": {
+            "type": "string",
+            "format": "binary",
+            "description": "遮罩图片文件（PNG，最大 20MB）。透明/白色区域表示需要修改的部分，黑色区域保持不变"
+          },
+          "n": {
+            "type": "integer",
+            "description": "生成图片数量",
+            "default": 1,
+            "minimum": 1,
+            "maximum": 10,
+            "example": 1
+          },
+          "size": {
+            "type": "string",
+            "description": "输出图片尺寸。支持任意 `宽x高` 格式，不传时默认使用参考图尺寸",
+            "default": "auto",
+            "example": "1024x1024"
+          },
+          "quality": {
+            "type": "string",
+            "description": "图片质量",
+            "default": "auto",
+            "enum": ["auto", "high", "medium", "low"]
+          },
+          "output_format": {
+            "type": "string",
+            "description": "输出图片格式",
+            "default": "png",
+            "enum": ["png", "jpeg", "webp"]
+          },
+          "output_compression": {
+            "type": "integer",
+            "description": "输出图片压缩比例（0-100）。仅在 output_format 为 jpeg 或 webp 时生效",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 100
+          },
+          "moderation": {
+            "type": "string",
+            "description": "内容审核级别",
+            "default": "auto",
+            "enum": ["auto", "low"]
+          },
+          "stream": {
+            "type": "boolean",
+            "description": "是否使用流式输出",
+            "default": false
+          }
+        },
+        "example": {
+          "model": "gpt-image-2",
+          "prompt": "给这只猫加一顶红色帽子",
+          "n": 1,
+          "quality": "high"
+        }
+      },
+      "ImageResponse": {
+        "type": "object",
+        "properties": {
+          "created": {
+            "type": "integer",
+            "description": "生成时间戳（Unix 秒）"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "description": "生成的图片 URL"
+                },
+                "revised_prompt": {
+                  "type": "string",
+                  "description": "修改后的提示词"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": { "type": "string" },
+              "code": { "type": "integer" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

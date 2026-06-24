@@ -103,7 +103,18 @@ func TryTieredSettle(relayInfo *relaycommon.RelayInfo, params billingexpr.TokenP
 	// in the price helper based on the request body (duration/resolution).
 	// The snapshot already has the correct quota, so just return it.
 	if snap.BillingMode == "per_second" || snap.BillingMode == "per_call" {
-		return true, snap.EstimatedQuotaAfterGroup, nil
+		quota := snap.EstimatedQuotaAfterGroup
+		// Apply OtherRatios for per_call/per_second modes.
+		// For image generation, n (image count) is added to OtherRatios
+		// after pre-consume, so we need to multiply it here.
+		if relayInfo.PriceData.OtherRatios != nil {
+			for _, ratio := range relayInfo.PriceData.OtherRatios {
+				if ratio != 1.0 {
+					quota = int(float64(quota) * ratio)
+				}
+			}
+		}
+		return true, quota, nil
 	}
 
 	if snap.BillingMode != "tiered_expr" {
