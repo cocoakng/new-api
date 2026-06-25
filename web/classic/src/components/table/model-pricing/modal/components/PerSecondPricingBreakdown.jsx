@@ -75,13 +75,18 @@ const parsePerSecondTiers = (expr) => {
   return tiers;
 };
 
-export default function PerSecondPricingBreakdown({ billingExpr, groupRatio, t }) {
+export default function PerSecondPricingBreakdown({ billingExpr, groupRatio, selectedGroup, t }) {
   const { symbol, rate } = getCurrencyConfig();
   const tiers = parsePerSecondTiers(billingExpr || '');
 
-  // groupRatio is a map like {default: 1.5, vip: 2}, extract a single ratio value
-  const ratioKeys = groupRatio ? Object.keys(groupRatio) : [];
-  const singleRatio = ratioKeys.length > 0 ? groupRatio[ratioKeys[0]] : 1;
+  // Use the selected group ratio if available, otherwise fall back to the first group ratio
+  let singleRatio = 1;
+  if (groupRatio && selectedGroup && selectedGroup !== 'all' && groupRatio[selectedGroup] !== undefined) {
+    singleRatio = groupRatio[selectedGroup];
+  } else if (groupRatio) {
+    const ratioKeys = Object.keys(groupRatio);
+    singleRatio = ratioKeys.length > 0 ? groupRatio[ratioKeys[0]] : 1;
+  }
 
   if (!tiers || tiers.length === 0) {
     return (

@@ -37,6 +37,7 @@ const ModelDetailSideSheet = ({
   onClose,
   modelData,
   groupRatio,
+  selectedGroup,
   currency,
   siteDisplayType,
   tokenUnit,
@@ -115,6 +116,7 @@ const ModelDetailSideSheet = ({
                   <PerSecondPricingBreakdown
                     billingExpr={modelData.billing_expr}
                     groupRatio={groupRatio}
+                    selectedGroup={selectedGroup}
                     t={t}
                   />
                 </div>
@@ -127,6 +129,7 @@ const ModelDetailSideSheet = ({
                   <PerCallPricingBreakdown
                     perCallMatrix={modelData.per_call_matrix}
                     groupRatio={groupRatio}
+                    selectedGroup={selectedGroup}
                     t={t}
                   />
                 </div>
