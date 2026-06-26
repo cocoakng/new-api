@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "视频生成 API",
-    "description": "支持文生视频、图生视频、首尾帧控制等场景，覆盖可灵 Kling、Vidu、Grok、豆包 Seedance 等主流视频生成模型。\n\n## 调用流程\n\n```\n1. POST /v1/videos  → 提交任务，获得 task_id\n2. GET /v1/videos/{task_id}  → 轮询状态，等待 status = \"completed\"\n3. GET /v1/videos/{task_id}/content  → 下载视频文件\n```\n\n## 认证方式\n\n所有请求需在 Header 中携带 API Key：\n\n```\nAuthorization: Bearer YOUR_API_KEY\n```\n\n## 可用模型\n\n| 模型 | 分辨率/模式 | 时长 | 图生视频 | 特殊参数 |\n|------|------------|------|----------|----------|\n| `kling-v3` | mode: std(720p) / pro(1080p) | 3-15s | 支持（reference_images / image_with_roles） | `mode`, `audio`, `metadata` |\n| `viduq3` | 720p / 1080p | 1-16s / 3-16s | 支持（image_urls，首尾帧 2 张） | `resolution`, `audio`, `seed`, `metadata` |\n| `grok-video-3` | 480p / 720p | 6s / 10s / 15s | 支持（images） | `seconds`, `resolution`, `aspect_ratio` |\n| `seedance-2-fast` | 480p / 720p | 4-15s / 自动 | 支持（image_with_roles / video_with_roles） | `resolution`, `generate_audio`, `seed` |",
+    "description": "视频生成 API，支持文生视频、图生视频、首尾帧控制等场景，覆盖可灵 Kling、Vidu、Grok、豆包 Seedance 等主流视频生成模型。\n\n## 完整调用流程\n\n```\n0. POST /v1/images/upload  → 上传图片（base64/文件），获取公网 URL\n1. POST /v1/videos         → 提交任务，使用上传的图片 URL 作为参考图\n2. GET /v1/videos/{task_id} → 轮询状态，等待 status = \"completed\"\n3. GET /v1/videos/{task_id}/content → 下载视频文件\n```\n\n## 参考图片上传\n\n所有图生视频接口中的图片字段均需要 **公网可访问的 URL**。如果你的图片是本地文件（base64 或文件上传），请先调用 `/v1/images/upload` 接口上传，获得 URL 后传入视频生成接口。\n\n图片要求：\n- 支持格式：JPEG、PNG、WebP、GIF\n- 大小限制：10MB 以内（超过 10MB 会自动压缩到 10MB 以内，优先保证画质）\n- 上传后返回形如 `https://www.ai-link.shop/img/xxx/filename.png` 的 URL\n\n## 认证方式\n\n所有请求需在 Header 中携带 API Key：\n\n```\nAuthorization: Bearer YOUR_API_KEY\n```\n\n## 可用模型\n\n| 模型 | 分辨率/模式 | 时长 | 图生视频 | 特殊参数 |\n|------|------------|------|----------|----------|\n| `kling-v3` | mode: std(720p) / pro(1080p) | 3-15s | 支持（reference_images / image_with_roles） | `mode`, `audio`, `metadata` |\n| `viduq3` | 720p / 1080p | 1-16s / 3-16s | 支持（image_urls，首尾帧 2 张） | `resolution`, `audio`, `seed`, `metadata` |\n| `grok-video-3` | 480p / 720p | 6s / 10s / 15s | 支持（images） | `seconds`, `resolution`, `aspect_ratio` |\n| `seedance-2-fast` | 480p / 720p | 4-15s / 自动 | 支持（image_with_roles / video_with_roles） | `resolution`, `generate_audio`, `seed` |",
     "version": "1.0.0"
   },
   "servers": [
@@ -18,11 +18,81 @@
   ],
   "tags": [
     {
+      "name": "图片上传",
+      "description": "上传图片获取公网 URL，用于视频生成参考图"
+    },
+    {
       "name": "视频生成",
       "description": "视频生成任务提交、查询、下载"
     }
   ],
   "paths": {
+    "/v1/images/upload": {
+      "post": {
+        "summary": "上传图片获取 URL",
+        "description": "上传本地图片到云端，返回公网可访问的图片 URL。适用于视频生成时需要参考图的场景。\n\n支持两种上传方式：\n\n**方式 1：JSON Body（base64）**\n```bash\ncurl -X POST https://www.ai-link.shop/v1/images/upload \\\n  -H \"Authorization: Bearer YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"image\":\"data:image/png;base64,iVBOR...\"}'\n```\n\n**方式 2：文件上传（multipart/form-data）**\n```bash\ncurl -X POST https://www.ai-link.shop/v1/images/upload \\\n  -H \"Authorization: Bearer YOUR_API_KEY\" \\\n  -F \"image=@/path/to/image.png\"\n```\n\n图片要求：\n- 支持格式：JPEG、PNG、WebP、GIF\n- 大小限制：10MB 以内（超过 10MB 会自动压缩到 10MB 以内，优先保证画质）\n- 返回 URL 格式：`https://www.ai-link.shop/img/xxx/filename.png`",
+        "operationId": "uploadImage",
+        "tags": ["图片上传"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UploadImageRequest" },
+              "example": {
+                "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "图片文件（支持 JPEG、PNG、WebP、GIF）"
+                  }
+                },
+                "required": ["image"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "上传成功",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UploadImageResponse" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "url": "https://www.ai-link.shop/img/5gZNVd5C/cat.png",
+                    "filename": "cat.png",
+                    "size": 237059,
+                    "mime": "image/png"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求错误",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "error": {
+                    "message": "image too large: 15728640 bytes (max 20MB)",
+                    "code": 400
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
     "/v1/videos": {
       "post": {
         "summary": "提交视频生成任务",
@@ -154,15 +224,59 @@
     },
     "schemas": {
 
+      "UploadImageRequest": {
+        "type": "object",
+        "description": "上传图片请求（JSON 方式，也可用 multipart/form-data 上传文件）",
+        "properties": {
+          "image": {
+            "type": "string",
+            "description": "base64 编码的图片数据。支持两种格式：\n1. 带前缀：`data:image/png;base64,iVBOR...`\n2. 纯 base64：`iVBORw0KGgo...`"
+          }
+        },
+        "required": ["image"]
+      },
+
+      "UploadImageResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "是否成功"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "公网可访问的图片 URL，可直接用于视频生成接口的参考图字段"
+              },
+              "filename": {
+                "type": "string",
+                "description": "文件名"
+              },
+              "size": {
+                "type": "integer",
+                "description": "图片大小（字节）"
+              },
+              "mime": {
+                "type": "string",
+                "description": "MIME 类型"
+              }
+            }
+          }
+        }
+      },
+
       "ImageWithRole": {
         "type": "object",
-        "description": "带角色的图片对象",
+        "description": "带角色的图片对象。url 可通过 POST /v1/images/upload 获取",
         "required": ["url", "role"],
         "properties": {
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "图片 URL（需公网可访问）"
+            "description": "图片 URL（公网可访问），可通过 POST /v1/images/upload 接口上传本地图片获取"
           },
           "role": {
             "type": "string",
@@ -210,13 +324,13 @@
           "reference_images": {
             "type": "array",
             "items": { "type": "string", "format": "uri" },
-            "description": "普通参考图 URL 数组。仅表示参考图语义，不会自动将第二张推断为尾帧。首尾帧请使用 image_with_roles",
+            "description": "普通参考图 URL 数组。可通过 POST /v1/images/upload 上传本地图片获取 URL。仅表示参考图语义，不会自动将第二张推断为尾帧。首尾帧请使用 image_with_roles",
             "example": ["https://example.com/reference.jpg"]
           },
           "image_with_roles": {
             "type": "array",
             "items": { "$ref": "#/components/schemas/ImageWithRole" },
-            "description": "显式图片角色数组，用于首尾帧控制或混合输入。role 可选：first_frame（首帧）、last_frame（尾帧）、reference / reference_image（参考图）",
+            "description": "显式图片角色数组，用于首尾帧控制或混合输入。url 可通过 POST /v1/images/upload 上传获取。role 可选：first_frame（首帧）、last_frame（尾帧）、reference / reference_image（参考图）",
             "example": [
               { "url": "https://example.com/start.jpg", "role": "first_frame" },
               { "url": "https://example.com/end.jpg", "role": "last_frame" }
@@ -290,7 +404,7 @@
           "image_urls": {
             "type": "array",
             "items": { "type": "string", "format": "uri" },
-            "description": "参考图片 URL 数组。viduq3-pro/turbo：不传=文生视频，1张=首帧，2张=首尾帧。viduq3：必填，最多7张",
+            "description": "参考图片 URL 数组。可通过 POST /v1/images/upload 上传本地图片获取。viduq3-pro/turbo：不传=文生视频，1张=首帧，2张=首尾帧。viduq3：必填，最多7张",
             "example": ["https://example.com/reference.jpg"]
           },
           "audio": {
@@ -394,7 +508,7 @@
           "images": {
             "type": "array",
             "items": { "type": "string", "format": "uri" },
-            "description": "用于图生视频的参考图像 URL 数组。仅支持 URL 格式（不再支持 base64）。最少 1 张，最多 3 张",
+            "description": "用于图生视频的参考图像 URL 数组。可通过 POST /v1/images/upload 上传获取。仅支持 URL 格式（不再支持 base64）。最少 1 张，最多 3 张",
             "example": ["https://example.com/dog.jpg"]
           }
         },
@@ -441,12 +555,12 @@
           "image_urls": {
             "type": "array",
             "items": { "type": "string", "format": "uri" },
-            "description": "兼容模式下的图片 URL 数组。传 1 张通常按首帧处理，传多张可能产生歧义。不建议与新接入使用，请改用 image_with_roles"
+            "description": "兼容模式下的图片 URL 数组。可通过 POST /v1/images/upload 上传获取。传 1 张通常按首帧处理，传多张可能产生歧义。不建议与新接入使用，请改用 image_with_roles"
           },
           "image_with_roles": {
             "type": "array",
             "items": { "$ref": "#/components/schemas/ImageWithRole" },
-            "description": "带角色的图片数组。支持 first_frame（首帧，最多1张）、last_frame（尾帧，最多1张）、reference_image（参考图，最多9张）。首帧/首尾帧模式不能与参考模式混用",
+            "description": "带角色的图片数组。url 可通过 POST /v1/images/upload 上传获取。支持 first_frame（首帧，最多1张）、last_frame（尾帧，最多1张）、reference_image（参考图，最多9张）。首帧/首尾帧模式不能与参考模式混用",
             "example": [
               { "url": "https://example.com/first.png", "role": "first_frame" },
               { "url": "https://example.com/last.png", "role": "last_frame" }
