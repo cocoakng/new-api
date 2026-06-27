@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "视频生成 API",
-    "description": "视频生成 API，支持文生视频、图生视频、首尾帧控制等场景，覆盖可灵 Kling、Vidu、Grok、豆包 Seedance 等主流视频生成模型。\n\n## 完整调用流程\n\n```\n0. POST /v1/images/upload  → 上传图片（base64/文件），获取公网 URL\n1. POST /v1/videos         → 提交任务，使用上传的图片 URL 作为参考图\n2. GET /v1/videos/{task_id} → 轮询状态，等待 status = \"completed\"\n3. GET /v1/videos/{task_id}/content → 下载视频文件\n```\n\n## 参考图片上传\n\n所有图生视频接口中的图片字段均需要 **公网可访问的 URL**。如果你的图片是本地文件（base64 或文件上传），请先调用 `/v1/images/upload` 接口上传，获得 URL 后传入视频生成接口。\n\n图片要求：\n- 支持格式：JPEG、PNG、WebP、GIF\n- 大小限制：10MB 以内（超过 10MB 会自动压缩到 10MB 以内，优先保证画质）\n- 上传后返回形如 `https://www.ai-link.shop/img/xxx/filename.png` 的 URL\n\n## 认证方式\n\n所有请求需在 Header 中携带 API Key：\n\n```\nAuthorization: Bearer YOUR_API_KEY\n```\n\n## 可用模型\n\n| 模型 | 分辨率/模式 | 时长 | 图生视频 | 特殊参数 |\n|------|------------|------|----------|----------|\n| `kling-v3` | mode: std(720p) / pro(1080p) | 3-15s | 支持（reference_images / image_with_roles） | `mode`, `audio`, `metadata` |\n| `viduq3` | 720p / 1080p | 1-16s / 3-16s | 支持（image_urls，首尾帧 2 张） | `resolution`, `audio`, `seed`, `metadata` |\n| `grok-video-3` | 480p / 720p | 6s / 10s / 15s | 支持（images） | `seconds`, `resolution`, `aspect_ratio` |\n| `seedance-2-fast` | 480p / 720p | 4-15s / 自动 | 支持（image_with_roles / video_with_roles） | `resolution`, `generate_audio`, `seed` |",
+    "description": "视频生成 API，支持文生视频、图生视频、首尾帧控制等场景，覆盖可灵 Kling、Vidu、Grok、豆包 Seedance 等主流视频生成模型。\n\n## 完整调用流程\n\n```\n0. POST /v1/images/upload  → 上传图片（base64/文件），获取公网 URL\n1. POST /v1/videos         → 提交任务，使用上传的图片 URL 作为参考图\n2. GET /v1/videos/{task_id} → 轮询状态，等待 status = \"completed\"\n3. GET /v1/videos/{task_id}/content → 下载视频文件\n```\n\n## 参考图片上传\n\n所有图生视频接口中的图片字段均需要 **公网可访问的 URL**。如果你的图片是本地文件（base64 或文件上传），请先调用 `/v1/images/upload` 接口上传，获得 URL 后传入视频生成接口。\n\n图片要求：\n- 支持格式：JPEG、PNG、WebP、GIF\n- 大小限制：10MB 以内（超过 10MB 会自动压缩到 10MB 以内，优先保证画质）\n- 上传后返回形如 `https://www.ai-link.shop/img/xxx/filename.png` 的 URL\n\n## 认证方式\n\n所有请求需在 Header 中携带 API Key：\n\n```\nAuthorization: Bearer YOUR_API_KEY\n```\n\n## 可用模型\n\n| 模型 | 分辨率/模式 | 时长 | 图生视频 | 特殊参数 |\n|------|------------|------|----------|----------|\n| `kling-v3` | mode: std(720p) / pro(1080p) | 3-15s | 支持（reference_images / image_with_roles） | `mode`, `audio`, `metadata` |\n| `viduq3` | 720p / 1080p | 1-16s / 3-16s | 支持（image_urls，首尾帧 2 张） | `resolution`, `audio`, `seed`, `metadata` |\n| `grok-video-3` | 480p / 720p | 6s / 10s / 15s | 支持（images） | `seconds`, `resolution`, `aspect_ratio` |\n| `seedance-2-fast` | 480p / 720p | 4-15s / 自动 | 支持（image_with_roles / video_with_roles） | `resolution`, `generate_audio`, `seed` |\n| `doubao-seedance-2-0-260128` | 480p / 720p / 1080p | 4-15s / 自动 | 支持（image_with_roles / video_with_roles / audio_with_roles） | `resolution`, `generate_audio`, `seed`, `service_tier` |\n| `doubao-seedance-2-0-fast-260128` | 480p / 720p / 1080p | 4-15s / 自动 | 支持（image_with_roles / video_with_roles / audio_with_roles） | `resolution`, `generate_audio`, `seed`, `service_tier` |\n| `happyhorse-1.0` | 720p / 1080p | 5-10s | 支持（images） | `resolution`, `aspect_ratio`, `seed` |",
     "version": "1.0.0"
   },
   "servers": [
@@ -110,14 +110,20 @@
                     "kling-v3": "#/components/schemas/KlingV3Request",
                     "viduq3": "#/components/schemas/ViduQ3Request",
                     "grok-video-3": "#/components/schemas/GrokVideo3Request",
-                    "seedance-2-fast": "#/components/schemas/Seedance2FastRequest"
+                    "seedance-2-fast": "#/components/schemas/Seedance2FastRequest",
+                    "doubao-seedance-2-0-260128": "#/components/schemas/DoubaoSeedance20Request",
+                    "doubao-seedance-2-0-fast-260128": "#/components/schemas/DoubaoSeedance20FastRequest",
+                    "happyhorse-1.0": "#/components/schemas/HappyHorse10Request"
                   }
                 },
                 "oneOf": [
                   { "$ref": "#/components/schemas/KlingV3Request" },
                   { "$ref": "#/components/schemas/ViduQ3Request" },
                   { "$ref": "#/components/schemas/GrokVideo3Request" },
-                  { "$ref": "#/components/schemas/Seedance2FastRequest" }
+                  { "$ref": "#/components/schemas/Seedance2FastRequest" },
+                  { "$ref": "#/components/schemas/DoubaoSeedance20Request" },
+                  { "$ref": "#/components/schemas/DoubaoSeedance20FastRequest" },
+                  { "$ref": "#/components/schemas/HappyHorse10Request" }
                 ]
               }
             }
@@ -624,6 +630,167 @@
           "resolution": "720p"
         }
       },
+
+      "DoubaoSeedance20Request": {
+        "title": "doubao-seedance-2-0-260128",
+        "type": "object",
+        "required": ["model", "prompt"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "固定值 `doubao-seedance-2-0-260128`",
+            "example": "doubao-seedance-2-0-260128"
+          },
+          "video_provider": {
+            "type": "string",
+            "description": "固定值 `seedance`，标识视频提供方",
+            "example": "seedance"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "视频内容描述。支持中英文，最多 4000 字符，建议 500 字以内。明确描述场景、主体动作、镜头运动和风格",
+            "example": "夜晚城市街道，一辆银色跑车驶过雨后路面，电影感镜头"
+          },
+          "size": {
+            "type": "string",
+            "description": "视频宽高比。可选值：21:9（超宽屏）、16:9（横屏）、4:3、1:1（方形）、3:4、9:16（竖屏）。不传默认自适应",
+            "enum": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+            "example": "16:9"
+          },
+          "seconds": {
+            "type": "string",
+            "description": "视频时长（秒）。范围 4-15，设为 -1 表示自适应时长",
+            "default": "5",
+            "example": "5"
+          },
+          "reference_images": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "description": "参考素材 URL 数组。可通过 POST /v1/images/upload 上传获取。不传=文生视频；传1张=首帧图生视频；传2张=首尾帧控制；传多张=多参考图。也支持在数组中传入 `video_url:` 前缀的视频 URL（如 `video_url:https://example.com/ref.mp4`）和 base64 音频"
+          },
+          "generate_audio": {
+            "type": "boolean",
+            "description": "是否生成同步音频。Seedance 2.0 默认生成音频",
+            "default": true
+          }
+        },
+        "example": {
+          "model": "doubao-seedance-2-0-260128",
+          "video_provider": "seedance",
+          "prompt": "夜晚城市街道，一辆银色跑车驶过雨后路面，电影感镜头",
+          "size": "16:9",
+          "seconds": "5"
+        }
+      },
+
+      "DoubaoSeedance20FastRequest": {
+        "title": "doubao-seedance-2-0-fast-260128",
+        "type": "object",
+        "required": ["model", "prompt"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "固定值 `doubao-seedance-2-0-fast-260128`（Fast 版本，价格更低）",
+            "example": "doubao-seedance-2-0-fast-260128"
+          },
+          "video_provider": {
+            "type": "string",
+            "description": "固定值 `seedance`，标识视频提供方",
+            "example": "seedance"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "视频内容描述。支持中英文，最多 4000 字符，建议 500 字以内",
+            "example": "让画面中的人物自然转头微笑，背景有轻微景深变化"
+          },
+          "size": {
+            "type": "string",
+            "description": "视频宽高比。可选值：21:9（超宽屏）、16:9（横屏）、4:3、1:1（方形）、3:4、9:16（竖屏）。不传默认自适应",
+            "enum": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+            "example": "9:16"
+          },
+          "seconds": {
+            "type": "string",
+            "description": "视频时长（秒）。范围 4-15，设为 -1 表示自适应时长",
+            "default": "5",
+            "example": "5"
+          },
+          "reference_images": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "description": "参考素材 URL 数组。不传=文生视频；传1张=首帧图生视频；传2张=首尾帧控制；传多张=多参考图。也支持 `video_url:` 前缀视频和 base64 音频"
+          },
+          "generate_audio": {
+            "type": "boolean",
+            "description": "是否生成同步音频",
+            "default": true
+          }
+        },
+        "example": {
+          "model": "doubao-seedance-2-0-fast-260128",
+          "video_provider": "seedance",
+          "prompt": "让画面中的人物自然转头微笑，背景有轻微景深变化",
+          "reference_images": ["https://example.com/first-frame.png"],
+          "size": "9:16",
+          "seconds": "5"
+        }
+      },
+
+      "HappyHorse10Request": {
+        "title": "happyhorse-1.0",
+        "type": "object",
+        "required": ["model", "prompt"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "固定值 `happyhorse-1.0`",
+            "example": "happyhorse-1.0"
+          },
+          "video_provider": {
+            "type": "string",
+            "description": "固定值 `happyhorse`，标识视频提供方",
+            "example": "happyhorse"
+          },
+          "mode": {
+            "type": "string",
+            "description": "生成模式。不传时系统根据参考图自动判断",
+            "enum": ["text_to_video", "image_to_video", "reference_to_video", "video_edit"],
+            "example": "text_to_video"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "视频内容描述。多参考图模式下建议在提示词中说明每张图的用途，例如\"第一张是人物，第二张是服装，第三张是场景\"",
+            "example": "一辆银色跑车穿过雨夜城市街道，低机位跟拍，电影感灯光"
+          },
+          "size": {
+            "type": "string",
+            "description": "视频宽高比。可选值：16:9、9:16、4:3、3:4、1:1",
+            "enum": ["16:9", "9:16", "4:3", "3:4", "1:1"],
+            "default": "16:9",
+            "example": "16:9"
+          },
+          "seconds": {
+            "type": "string",
+            "description": "视频时长（秒）。范围 5-15，低于 5 按 5 秒处理，高于 15 按 15 秒处理",
+            "default": "5",
+            "example": "5"
+          },
+          "reference_images": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "description": "参考素材数组。text_to_video 时不传；image_to_video 时传1张首帧图；reference_to_video 时最多9张图；video_edit 时将原视频URL加 `video_url:` 前缀放入数组（如 `video_url:https://example.com/source.mp4`），后可继续放图片作为风格参考"
+          }
+        },
+        "example": {
+          "model": "happyhorse-1.0",
+          "video_provider": "happyhorse",
+          "mode": "text_to_video",
+          "prompt": "一辆银色跑车穿过雨夜城市街道，低机位跟拍，电影感灯光",
+          "size": "16:9",
+          "seconds": "5"
+        }
+      },
+
 
       "VideoTaskResponse": {
         "type": "object",
