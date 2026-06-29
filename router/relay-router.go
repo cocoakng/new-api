@@ -83,6 +83,9 @@ func SetRelayRouter(router *gin.Engine) {
 		// 图片上传（不走 Distribute 中间件，因为不需要 model 字段）
 		relayV1Router.POST("/images/upload", controller.UploadImage)
 
+		// 文件上传到 R2（同样不走 Distribute 中间件）
+		relayV1Router.POST("/files/upload", controller.UploadFile)
+
 		//http router
 		httpRouter := relayV1Router.Group("")
 		httpRouter.Use(middleware.Distribute())
