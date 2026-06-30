@@ -149,7 +149,7 @@
     "/v1/videos/{task_id}": {
       "get": {
         "summary": "查询任务状态",
-        "description": "🔽 切换上方模型下拉框，查看不同模型的响应格式。\n\n根据任务 ID 查询视频生成状态。任务完成后，使用 `GET /v1/videos/{task_id}/content` 接口下载视频文件。",
+        "description": "根据任务 ID 查询视频生成状态。任务完成后，使用 `GET /v1/videos/{task_id}/content` 接口下载视频文件。",
         "operationId": "getVideoStatus",
         "tags": ["视频生成"],
         "parameters": [
