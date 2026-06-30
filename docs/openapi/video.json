@@ -97,7 +97,7 @@
     "/v1/videos": {
       "post": {
         "summary": "提交视频生成任务",
-        "description": "提交一个视频生成任务，返回任务 ID，用于后续状态查询和视频下载。\n\n通过 `model` 字段选择模型，不同模型支持的参数不同，请在下方选择模型查看具体字段。",
+        "description": "🔽 切换上方模型下拉框，查看不同模型的入参说明。\n\n提交一个视频生成任务，返回任务 ID，用于后续状态查询和视频下载。\n\n通过 `model` 字段选择模型，不同模型支持的参数不同。",
         "operationId": "createVideo",
         "tags": ["视频生成"],
         "requestBody": {
@@ -130,19 +130,15 @@
         },
         "responses": {
           "200": {
-            "description": "任务提交成功",
+            "description": "任务提交成功。任务状态为 `queued`，表示已排队等待处理。",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VideoTaskResponse"
-                },
+                "schema": { "$ref": "#/components/schemas/VideoTaskResponse" },
                 "example": {
-                  "id": "task_xxxxxxxxxxxxxx",
-                  "object": "generation.task",
-                  "model": "kling-v3",
+                  "id": "video-task-hh123",
+                  "task_id": "video-task-hh123",
                   "status": "queued",
-                  "progress": 0,
-                  "created_at": 1781610285
+                  "model": "happyhorse-1.0"
                 }
               }
             }
@@ -153,7 +149,7 @@
     "/v1/videos/{task_id}": {
       "get": {
         "summary": "查询任务状态",
-        "description": "根据任务 ID 查询视频生成状态。",
+        "description": "🔽 切换上方模型下拉框，查看不同模型的响应格式。\n\n根据任务 ID 查询视频生成状态。任务完成后，使用 `GET /v1/videos/{task_id}/content` 接口下载视频文件。",
         "operationId": "getVideoStatus",
         "tags": ["视频生成"],
         "parameters": [
@@ -168,21 +164,46 @@
         ],
         "responses": {
           "200": {
-            "description": "查询成功",
+            "description": "查询成功。任务状态为 `completed` 时，可调用 `GET /v1/videos/{task_id}/content` 下载视频。",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/VideoTaskStatusResponse" },
                 "example": {
-                  "id": "task_xxxxxxxxxxxxxx",
-                  "object": "generation.task",
+                  "id": "task_ONeA1Eoc2sgYjQ7mTn9pvMLYLXbo08cV",
                   "model": "kling-v3",
+                  "object": "generation.task",
                   "status": "completed",
                   "progress": 100,
-                  "created_at": 1781610285,
-                  "completed_at": 1781610345,
-                  "result": {
-                    "type": "video",
-                    "data": [{ "format": "mp4", "url": "https://cdn.example.com/video.mp4" }]
+                  "created_at": 1782817507,
+                  "expires_at": 1782903962,
+                  "completed_at": 1782817562
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "任务未完成或参数错误",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "error": {
+                    "message": "Task is not completed yet, current status: in_progress",
+                    "type": "invalid_request_error"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "任务不存在",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "error": {
+                    "message": "Task not found",
+                    "type": "invalid_request_error"
                   }
                 }
               }
@@ -194,7 +215,7 @@
     "/v1/videos/{task_id}/content": {
       "get": {
         "summary": "下载视频",
-        "description": "下载已完成的视频文件。返回 video/mp4 二进制数据。",
+        "description": "下载已完成的视频文件。返回 video/mp4 二进制数据。\n\n**前置条件：**\n- 任务状态必须为 `completed`（通过 `GET /v1/videos/{task_id}` 查询确认）\n- 视频 URL 未过期（查询响应中的 `expires_at` 时间戳之前）\n\n**错误场景：**\n- 任务未完成：返回 400\n- 任务失败：返回 400\n- 任务不存在：返回 404\n- 视频已过期：返回 410",
         "operationId": "downloadVideo",
         "tags": ["视频生成"],
         "parameters": [
@@ -208,10 +229,37 @@
         ],
         "responses": {
           "200": {
-            "description": "视频二进制数据",
+            "description": "视频二进制数据（MP4 格式）",
             "content": {
               "video/mp4": {
                 "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          },
+          "400": {
+            "description": "任务未完成或已失败",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": { "message": "Task is not completed yet, current status: in_progress", "code": 400 } }
+              }
+            }
+          },
+          "404": {
+            "description": "任务不存在",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": { "message": "Task not found", "code": 404 } }
+              }
+            }
+          },
+          "410": {
+            "description": "视频已过期，无法下载",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": { "message": "Video has expired", "code": 410 } }
               }
             }
           }
@@ -693,57 +741,36 @@
 
       "VideoTaskResponse": {
         "type": "object",
+        "description": "视频任务提交响应。任务状态为 `queued` 表示已排队等待处理。",
         "properties": {
-          "id": { "type": "string", "description": "任务 ID" },
-          "object": { "type": "string", "example": "generation.task" },
-          "model": { "type": "string", "description": "使用的模型名称" },
+          "id": { "type": "string", "description": "任务 ID，用于后续状态查询和视频下载" },
+          "task_id": { "type": "string", "description": "任务 ID（与 id 相同）" },
           "status": {
             "type": "string",
-            "enum": ["queued", "in_progress", "completed", "failed"]
+            "description": "任务状态",
+            "enum": ["queued", "in_progress", "completed", "failed"],
+            "example": "queued"
           },
-          "progress": { "type": "integer", "description": "任务进度，提交成功时通常为 0" },
-          "created_at": { "type": "integer", "description": "任务创建时间戳（Unix 时间戳）" },
-          "metadata": { "type": "object", "description": "任务元数据" }
+          "model": { "type": "string", "description": "使用的模型名称" }
         }
       },
 
       "VideoTaskStatusResponse": {
         "type": "object",
+        "description": "视频任务状态响应。任务完成后，使用 `GET /v1/videos/{task_id}/content` 下载视频。",
         "properties": {
           "id": { "type": "string", "description": "任务 ID" },
-          "client_business_id": { "type": "string", "description": "客户侧业务 ID（请求中传入时返回）" },
-          "object": { "type": "string", "example": "generation.task" },
-          "model": { "type": "string" },
+          "model": { "type": "string", "description": "使用的模型名称" },
+          "object": { "type": "string", "description": "资源类型", "example": "generation.task" },
           "status": {
             "type": "string",
+            "description": "任务状态：`queued`（排队中）、`in_progress`（处理中）、`completed`（已完成）、`failed`（失败）",
             "enum": ["queued", "in_progress", "completed", "failed"]
           },
           "progress": { "type": "integer", "description": "任务进度百分比（0-100）" },
-          "created_at": { "type": "integer" },
-          "completed_at": { "type": "integer", "description": "完成时间戳" },
-          "expires_at": { "type": "integer", "description": "过期时间戳" },
-          "result": {
-            "type": "object",
-            "description": "生成结果（completed 时返回）",
-            "properties": {
-              "type": { "type": "string", "example": "video" },
-              "data": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "format": { "type": "string", "example": "mp4" },
-                    "url": { "type": "string" }
-                  }
-                }
-              }
-            }
-          },
-          "error": {
-            "type": "object",
-            "description": "错误信息（failed 时返回）",
-            "properties": { "message": { "type": "string" } }
-          }
+          "created_at": { "type": "integer", "description": "任务创建时间戳（Unix）" },
+          "completed_at": { "type": "integer", "description": "完成时间戳（完成时返回）" },
+          "expires_at": { "type": "integer", "description": "视频 URL 过期时间戳（完成时返回，过期后视频不可访问）" }
         }
       },
 
