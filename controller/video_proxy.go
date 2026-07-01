@@ -163,7 +163,18 @@ func VideoProxy(c *gin.Context) {
 		return
 	}
 
+	// Filter out upstream CORS headers to avoid duplicates
+	skipHeaders := map[string]bool{
+		"access-control-allow-origin":      true,
+		"access-control-allow-methods":     true,
+		"access-control-allow-headers":     true,
+		"access-control-allow-credentials": true,
+		"access-control-max-age":           true,
+	}
 	for key, values := range resp.Header {
+		if skipHeaders[strings.ToLower(key)] {
+			continue
+		}
 		for _, value := range values {
 			c.Writer.Header().Add(key, value)
 		}
