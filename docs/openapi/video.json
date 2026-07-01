@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "视频生成 API",
-    "description": "视频生成 API，支持文生视频、图生视频、首尾帧控制等场景，覆盖可灵 Kling、Vidu、Grok、豆包 Seedance 等主流视频生成模型。\n\n## 完整调用流程\n\n```\n0. POST /v1/files/upload    → 上传文件（图片/视频/音频），获取公网 URL\n1. POST /v1/videos          → 提交任务，使用上传的文件 URL 作为参考素材\n2. GET /v1/videos/{task_id} → 轮询状态，等待 status = \"completed\"\n3. GET /v1/videos/{task_id}/content → 下载视频文件\n```\n\n## 文件上传\n\n所有图生视频接口中的参考素材字段均需要 **公网可访问的 URL**，通过 `/v1/files/upload` 接口上传本地文件获取。\n\n- 支持格式：JPEG、PNG、WebP、GIF（图片）；MP4、WebM、MOV（视频）；MP3、WAV、OGG（音频）\n- 大小限制：图片 20MB，视频/音频 100MB（超过 10MB 的图片会自动压缩）\n- 支持两种上传方式：JSON Body（base64）或 multipart/form-data（文件上传）\n\n## 认证方式\n\n所有请求需在 Header 中携带 API Key：\n\n```\nAuthorization: Bearer YOUR_API_KEY\n```\n\n## 可用模型\n\n| 模型 | 分辨率/模式 | 时长 | 图生视频 | 特殊参数 |\n|------|------------|------|----------|----------|\n| `kling-v3` | mode: std(720p) / pro(1080p) | 3-15s | 支持（reference_images / image_with_roles） | `mode`, `audio`, `metadata` |\n| `viduq3` | 720p / 1080p | 3-16s | 支持（image_urls，必填，最多7张） | `resolution`, `audio`, `seed`, `metadata` |\n| `grok-video-3` | 480p / 720p | 6s / 10s / 15s | 支持（images） | `seconds`, `resolution`, `aspect_ratio` |\n| `doubao-seedance-2-0-260128` | 480p / 720p / 1080p | 4-15s / 自动 | 支持（image_with_roles / video_with_roles / audio_with_roles） | `resolution`, `generate_audio`, `seed`, `service_tier` |\n| `doubao-seedance-2-0-fast-260128` | 480p / 720p / 1080p | 4-15s / 自动 | 支持（image_with_roles / video_with_roles / audio_with_roles） | `resolution`, `generate_audio`, `seed`, `service_tier` |\n| `happyhorse-1.0` | 720p / 1080p | 5-10s | 支持（images） | `resolution`, `aspect_ratio`, `seed` |",
+    "description": "视频生成 API，支持文生视频、图生视频、首尾帧控制等场景，覆盖可灵 Kling、Vidu、Grok、豆包 Seedance、HappyHorse 等主流视频生成模型。\n\n## 完整调用流程\n\n```\n0. POST /v1/files/upload    → 上传文件（图片/视频/音频），获取公网 URL\n1. POST /v1/videos          → 提交任务，使用上传的文件 URL 作为参考素材\n2. GET /v1/videos/{task_id} → 轮询状态，等待 status = \"completed\"\n3. GET /v1/videos/{task_id}/content → 下载视频文件\n```\n\n## 文件上传\n\n所有图生视频接口中的参考素材字段均需要 **公网可访问的 URL**，通过 `/v1/files/upload` 接口上传本地文件获取。\n\n- 支持格式：JPEG、PNG、WebP、GIF（图片）；MP4、WebM、MOV（视频）；MP3、WAV、OGG（音频）\n- 大小限制：图片 20MB，视频/音频 100MB（超过 10MB 的图片会自动压缩）\n- 支持两种上传方式：JSON Body（base64）或 multipart/form-data（文件上传）\n\n## 认证方式\n\n所有请求需在 Header 中携带 API Key：\n\n```\nAuthorization: Bearer YOUR_API_KEY\n```\n\n## 可用模型\n\n| 模型 | 分辨率/模式 | 时长 | 图生视频 | 特殊参数 |\n|------|------------|------|----------|----------|\n| `kling-v3` | mode: std(720p) / pro(1080p) | 3-15s | 支持（reference_images / image_with_roles） | `mode`, `audio`, `metadata` |\n| `viduq3` | 720p / 1080p | 3-16s | 支持（image_urls，必填，最多7张） | `resolution`, `audio`, `seed`, `metadata` |\n| `grok-video-3` | 480p / 720p | 6s / 10s / 15s | 支持（images） | `seconds`, `resolution`, `aspect_ratio` |\n| `doubao-seedance-2-0-260128` | 480p / 720p / 1080p | 4-15s / 自动 | 支持（reference_images / content 数组） | `resolution`, `generate_audio`, `seed`, `content`, `function_mode` |\n| `doubao-seedance-2-0-fast-260128` | 480p / 720p / 1080p | 4-15s / 自动 | 支持（reference_images / content 数组） | `resolution`, `generate_audio`, `seed`, `content`, `function_mode` |\n| `happyhorse-1.0` | 720P / 1080P | 5-10s | 支持（content 数组 / images） | `mode`, `resolution`, `ratio`, `seed` |",
     "version": "1.0.0"
   },
   "servers": [
@@ -97,7 +97,7 @@
     "/v1/videos": {
       "post": {
         "summary": "提交视频生成任务",
-        "description": "🔽 切换上方模型下拉框，查看不同模型的入参说明。\n\n提交一个视频生成任务，返回任务 ID，用于后续状态查询和视频下载。\n\n通过 `model` 字段选择模型，不同模型支持的参数不同。",
+        "description": "提交一个视频生成任务，返回任务 ID，用于后续状态查询和视频下载。\n\n通过 `model` 字段选择模型，不同模型支持的参数不同。具体参数见下方各模型 schema。",
         "operationId": "createVideo",
         "tags": ["视频生成"],
         "requestBody": {
@@ -588,45 +588,218 @@
             "description": "固定值 `doubao-seedance-2-0-260128`",
             "example": "doubao-seedance-2-0-260128"
           },
-          "video_provider": {
-            "type": "string",
-            "description": "固定值 `seedance`，标识视频提供方",
-            "example": "seedance"
-          },
           "prompt": {
             "type": "string",
-            "description": "视频内容描述。支持中英文，最多 4000 字符，建议 500 字以内。明确描述场景、主体动作、镜头运动和风格",
-            "example": "夜晚城市街道，一辆银色跑车驶过雨后路面，电影感镜头"
+            "description": "必填。视频生成主描述。支持中英文，最多 4000 字符，建议 500 字以内。明确描述场景、主体动作、镜头运动和风格",
+            "example": "参考素材生成一段剧情短视频"
           },
-          "size": {
+          "mode": {
             "type": "string",
-            "description": "视频宽高比。可选值：21:9（超宽屏）、16:9（横屏）、4:3、1:1（方形）、3:4、9:16（竖屏）。不传默认自适应",
-            "enum": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
-            "example": "16:9"
+            "description": "可选。兼容模式字段。`t2v`（文生视频）、`i2v`（图生视频）、`i2v_first_last`（首尾帧控制）、`reference_images`（多参考图）、`reference_material`（全能参考模式，建议配合 content 使用）",
+            "enum": ["t2v", "i2v", "i2v_first_last", "reference_images", "reference_material"],
+            "example": "reference_material"
           },
-          "seconds": {
+          "function_mode": {
             "type": "string",
-            "description": "视频时长（秒）。范围 4-15，设为 -1 表示自适应时长",
-            "default": "5",
-            "example": "5"
+            "description": "可选。高级功能模式，如 `omni_reference` 用于全能参考模式",
+            "example": "omni_reference"
+          },
+          "content": {
+            "type": "array",
+            "description": "可选。火山方舟 content 数组，按顺序混排文本与素材项。复杂参考素材场景推荐使用此字段。文本项使用 `{ \"type\": \"text\", \"text\": \"...\" }`；图片、视频、音频项分别使用 `image_url`、`video_url`、`audio_url` 对象并在其中放 `url`，可配合 `role`（如 `reference_image`、`reference_video`、`reference_audio`）和 `name` 供文本引用",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["text", "image_url", "video_url", "audio_url"],
+                  "description": "内容项类型"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "文本内容，仅 type=text 时使用"
+                },
+                "image_url": {
+                  "oneOf": [
+                    { "type": "string" },
+                    { "type": "object", "properties": { "url": { "type": "string" } } }
+                  ],
+                  "description": "图片 URL，推荐对象写法：`{\"url\":\"https://...\"}`"
+                },
+                "video_url": {
+                  "oneOf": [
+                    { "type": "string" },
+                    { "type": "object", "properties": { "url": { "type": "string" } } }
+                  ],
+                  "description": "视频 URL，推荐对象写法：`{\"url\":\"https://...\"}`"
+                },
+                "audio_url": {
+                  "oneOf": [
+                    { "type": "string" },
+                    { "type": "object", "properties": { "url": { "type": "string" } } }
+                  ],
+                  "description": "音频 URL，推荐对象写法：`{\"url\":\"https://...\"}`"
+                },
+                "role": {
+                  "type": "string",
+                  "description": "素材用途标识，常见值如 reference_image、reference_video、reference_audio"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "素材名称，可供文本提示词引用或区分多个素材"
+                }
+              }
+            },
+            "example": [
+              { "type": "text", "text": "测试文字" },
+              { "type": "image_url", "image_url": { "url": "https://example.com/ref.png" }, "role": "reference_image", "name": "1" },
+              { "type": "video_url", "video_url": { "url": "https://example.com/ref.mp4" }, "role": "reference_video", "name": "2" }
+            ]
+          },
+          "image_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "可选。单张参考图 URL"
+          },
+          "image_urls": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "description": "可选。多张参考图 URL 列表"
           },
           "reference_images": {
             "type": "array",
             "items": { "type": "string", "format": "uri" },
-            "description": "参考素材 URL 数组。可通过 POST /v1/images/upload 上传获取。不传=文生视频；传1张=首帧图生视频；传2张=首尾帧控制；传多张=多参考图。也支持在数组中传入 `video_url:` 前缀的视频 URL（如 `video_url:https://example.com/ref.mp4`）和 base64 音频"
+            "description": "可选。参考素材 URL 数组。可通过 POST /v1/images/upload 上传获取。不传=文生视频；传1张=首帧图生视频；传2张=首尾帧控制；传多张=多参考图"
+          },
+          "input_reference": {
+            "type": "string",
+            "description": "可选。兼容参考输入字段"
+          },
+          "end_image_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "可选。末帧参考图 URL"
+          },
+          "last_image_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "可选。末帧参考图 URL 别名"
+          },
+          "video_urls": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "description": "可选。参考视频 URL 列表"
+          },
+          "audio_urls": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "description": "可选。参考音频 URL 列表"
+          },
+          "seconds": {
+            "oneOf": [
+              { "type": "number" },
+              { "type": "string" }
+            ],
+            "description": "可选。视频时长（秒）。范围 4-15，与 `duration` 兼容",
+            "default": 5,
+            "example": 5
+          },
+          "duration": {
+            "oneOf": [
+              { "type": "number" },
+              { "type": "string" }
+            ],
+            "description": "可选。视频时长（秒）。范围 4-15，与 `seconds` 兼容",
+            "default": 5,
+            "example": 5
+          },
+          "size": {
+            "type": "string",
+            "description": "可选。输出尺寸/分辨率。如 `1280x720`、`1920x1080`"
+          },
+          "aspect_ratio": {
+            "type": "string",
+            "description": "可选。画幅比例，如 `16:9`、`9:16`、`1:1`"
+          },
+          "ratio": {
+            "type": "string",
+            "description": "可选。画幅比例别名，如 `16:9`"
+          },
+          "resolution": {
+            "type": "string",
+            "description": "可选。输出分辨率，如 `720P`、`1080P`"
+          },
+          "quality": {
+            "type": "string",
+            "description": "可选。生成质量配置"
+          },
+          "fps": {
+            "type": "number",
+            "description": "可选。帧率"
           },
           "generate_audio": {
             "type": "boolean",
-            "description": "是否生成同步音频。Seedance 2.0 默认生成音频",
-            "default": true
+            "description": "可选。是否生成同步音频"
+          },
+          "watermark": {
+            "type": "boolean",
+            "description": "可选。是否添加水印"
+          }
+        },
+        "examples": {
+          "seedance_t2v": {
+            "summary": "文生视频",
+            "value": {
+              "model": "doubao-seedance-2-0-260128",
+              "prompt": "夜晚城市街道，一辆银色跑车驶过雨后路面，电影感镜头",
+              "duration": 5,
+              "size": "1280x720"
+            }
+          },
+          "seedance_i2v_first_last": {
+            "summary": "首尾帧控制",
+            "value": {
+              "model": "doubao-seedance-2-0-260128",
+              "mode": "i2v_first_last",
+              "prompt": "A camera moves from first frame to last frame naturally",
+              "image_urls": ["https://example.com/first.jpg"],
+              "end_image_url": "https://example.com/last.jpg",
+              "seconds": 5,
+              "size": "1280x720"
+            }
+          },
+          "seedance_reference_material": {
+            "summary": "全能参考模式 (reference_material)",
+            "value": {
+              "model": "doubao-seedance-2-0-260128",
+              "mode": "reference_material",
+              "prompt": "Blend image and short reference video into a coherent cinematic clip",
+              "reference_images": ["https://example.com/ref-1.jpg", "https://example.com/ref-2.jpg"],
+              "video_urls": ["https://example.com/ref-video.mp4"],
+              "audio_urls": ["https://example.com/ref-audio.mp3"],
+              "seconds": 5,
+              "size": "1280x720"
+            }
+          },
+          "seedance_content_mode": {
+            "summary": "火山方舟 content 模式",
+            "value": {
+              "model": "doubao-seedance-2-0-260128",
+              "mode": "reference_material",
+              "content": [
+                { "type": "text", "text": "A cinematic teaser video with fast-paced action cuts" },
+                { "type": "image_url", "image_url": { "url": "https://example.com/ref-1.jpg" } }
+              ],
+              "seconds": 5,
+              "size": "1280x720"
+            }
           }
         },
         "example": {
           "model": "doubao-seedance-2-0-260128",
-          "video_provider": "seedance",
           "prompt": "夜晚城市街道，一辆银色跑车驶过雨后路面，电影感镜头",
-          "size": "16:9",
-          "seconds": "5"
+          "duration": 5,
+          "size": "1280x720"
         }
       },
 
@@ -640,46 +813,155 @@
             "description": "固定值 `doubao-seedance-2-0-fast-260128`（Fast 版本，价格更低）",
             "example": "doubao-seedance-2-0-fast-260128"
           },
-          "video_provider": {
-            "type": "string",
-            "description": "固定值 `seedance`，标识视频提供方",
-            "example": "seedance"
-          },
           "prompt": {
             "type": "string",
-            "description": "视频内容描述。支持中英文，最多 4000 字符，建议 500 字以内",
+            "description": "必填。视频生成主描述。支持中英文，最多 4000 字符，建议 500 字以内",
             "example": "让画面中的人物自然转头微笑，背景有轻微景深变化"
           },
-          "size": {
+          "mode": {
             "type": "string",
-            "description": "视频宽高比。可选值：21:9（超宽屏）、16:9（横屏）、4:3、1:1（方形）、3:4、9:16（竖屏）。不传默认自适应",
-            "enum": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
-            "example": "9:16"
+            "description": "可选。兼容模式字段。`t2v`（文生视频）、`i2v`（图生视频）、`i2v_first_last`（首尾帧控制）、`reference_images`（多参考图）、`reference_material`（全能参考模式）",
+            "enum": ["t2v", "i2v", "i2v_first_last", "reference_images", "reference_material"],
+            "example": "i2v"
           },
-          "seconds": {
+          "function_mode": {
             "type": "string",
-            "description": "视频时长（秒）。范围 4-15，设为 -1 表示自适应时长",
-            "default": "5",
-            "example": "5"
+            "description": "可选。高级功能模式，如 `omni_reference` 用于全能参考模式"
+          },
+          "content": {
+            "type": "array",
+            "description": "可选。火山方舟 content 数组，格式与 DoubaoSeedance20Request 相同。复杂参考素材场景推荐使用",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string", "enum": ["text", "image_url", "video_url", "audio_url"] },
+                "text": { "type": "string" },
+                "image_url": { "oneOf": [{ "type": "string" }, { "type": "object", "properties": { "url": { "type": "string" } } }] },
+                "video_url": { "oneOf": [{ "type": "string" }, { "type": "object", "properties": { "url": { "type": "string" } } }] },
+                "audio_url": { "oneOf": [{ "type": "string" }, { "type": "object", "properties": { "url": { "type": "string" } } }] },
+                "role": { "type": "string" },
+                "name": { "type": "string" }
+              }
+            }
+          },
+          "image_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "可选。单张参考图 URL"
+          },
+          "image_urls": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "description": "可选。多张参考图 URL 列表"
           },
           "reference_images": {
             "type": "array",
             "items": { "type": "string", "format": "uri" },
-            "description": "参考素材 URL 数组。不传=文生视频；传1张=首帧图生视频；传2张=首尾帧控制；传多张=多参考图。也支持 `video_url:` 前缀视频和 base64 音频"
+            "description": "可选。参考素材 URL 数组。不传=文生视频；传1张=首帧图生视频；传2张=首尾帧控制；传多张=多参考图"
+          },
+          "input_reference": {
+            "type": "string",
+            "description": "可选。兼容参考输入字段"
+          },
+          "end_image_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "可选。末帧参考图 URL"
+          },
+          "last_image_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "可选。末帧参考图 URL 别名"
+          },
+          "video_urls": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "description": "可选。参考视频 URL 列表"
+          },
+          "audio_urls": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "description": "可选。参考音频 URL 列表"
+          },
+          "seconds": {
+            "oneOf": [
+              { "type": "number" },
+              { "type": "string" }
+            ],
+            "description": "可选。视频时长（秒）。范围 4-15，与 `duration` 兼容",
+            "default": 5,
+            "example": 5
+          },
+          "duration": {
+            "oneOf": [
+              { "type": "number" },
+              { "type": "string" }
+            ],
+            "description": "可选。视频时长（秒）。范围 4-15，与 `seconds` 兼容",
+            "default": 5,
+            "example": 5
+          },
+          "size": {
+            "type": "string",
+            "description": "可选。输出尺寸/分辨率。如 `1280x720`、`1920x1080`"
+          },
+          "aspect_ratio": {
+            "type": "string",
+            "description": "可选。画幅比例，如 `16:9`、`9:16`、`1:1`"
+          },
+          "ratio": {
+            "type": "string",
+            "description": "可选。画幅比例别名，如 `16:9`"
+          },
+          "resolution": {
+            "type": "string",
+            "description": "可选。输出分辨率，如 `720P`、`1080P`"
+          },
+          "quality": {
+            "type": "string",
+            "description": "可选。生成质量配置"
+          },
+          "fps": {
+            "type": "number",
+            "description": "可选。帧率"
           },
           "generate_audio": {
             "type": "boolean",
-            "description": "是否生成同步音频",
-            "default": true
+            "description": "可选。是否生成同步音频"
+          },
+          "watermark": {
+            "type": "boolean",
+            "description": "可选。是否添加水印"
+          }
+        },
+        "examples": {
+          "seedance_fast_t2v": {
+            "summary": "文生视频",
+            "value": {
+              "model": "doubao-seedance-2-0-fast-260128",
+              "prompt": "让画面中的人物自然转头微笑，背景有轻微景深变化",
+              "duration": 5,
+              "size": "1280x720"
+            }
+          },
+          "seedance_fast_i2v": {
+            "summary": "图生视频",
+            "value": {
+              "model": "doubao-seedance-2-0-fast-260128",
+              "mode": "i2v",
+              "prompt": "让画面中的人物自然转头微笑",
+              "image_urls": ["https://example.com/first-frame.png"],
+              "duration": 5,
+              "size": "1280x720"
+            }
           }
         },
         "example": {
           "model": "doubao-seedance-2-0-fast-260128",
-          "video_provider": "seedance",
           "prompt": "让画面中的人物自然转头微笑，背景有轻微景深变化",
           "reference_images": ["https://example.com/first-frame.png"],
           "size": "9:16",
-          "seconds": "5"
+          "duration": 5
         }
       },
 
@@ -693,48 +975,120 @@
             "description": "固定值 `happyhorse-1.0`",
             "example": "happyhorse-1.0"
           },
-          "video_provider": {
-            "type": "string",
-            "description": "固定值 `happyhorse`，标识视频提供方",
-            "example": "happyhorse"
-          },
           "mode": {
             "type": "string",
-            "description": "生成模式。不传时系统根据参考图自动判断",
-            "enum": ["text_to_video", "image_to_video", "reference_to_video", "video_edit"],
-            "example": "text_to_video"
+            "description": "聚合模型（happyhorse-1.0）模式字段。`t2v`（文生视频）、`i2v`（首帧图生视频）、`r2v`（多参考图生视频）、`video_edit`（视频编辑）。使用固定子模型（如 happyhorse-1.0-t2v）时可不传",
+            "enum": ["t2v", "i2v", "r2v", "video_edit"],
+            "example": "t2v"
           },
           "prompt": {
             "type": "string",
-            "description": "视频内容描述。多参考图模式下建议在提示词中说明每张图的用途，例如\"第一张是人物，第二张是服装，第三张是场景\"",
-            "example": "一辆银色跑车穿过雨夜城市街道，低机位跟拍，电影感灯光"
+            "description": "必填。视频生成或编辑提示词。多参考图模式下建议在提示词中说明每张图的用途",
+            "example": "A white horse running through a neon city street, cinematic"
           },
-          "size": {
-            "type": "string",
-            "description": "视频宽高比。可选值：16:9、9:16、4:3、3:4、1:1",
-            "enum": ["16:9", "9:16", "4:3", "3:4", "1:1"],
-            "default": "16:9",
-            "example": "16:9"
-          },
-          "seconds": {
-            "type": "string",
-            "description": "视频时长（秒）。范围 5-15，低于 5 按 5 秒处理，高于 15 按 15 秒处理",
-            "default": "5",
-            "example": "5"
-          },
-          "reference_images": {
+          "images": {
             "type": "array",
             "items": { "type": "string", "format": "uri" },
-            "description": "参考素材数组。text_to_video 时不传；image_to_video 时传1张首帧图；reference_to_video 时最多9张图；video_edit 时将原视频URL加 `video_url:` 前缀放入数组（如 `video_url:https://example.com/source.mp4`），后可继续放图片作为风格参考"
+            "description": "可选。参考素材 URL 数组。i2v 模式传1张首帧图；r2v 模式传多张参考图；video_edit 模式传原视频URL和风格参考图"
+          },
+          "content": {
+            "type": "array",
+            "description": "可选。Sora 兼容 content 数组，按顺序混排文本与素材项。推荐用于 Sora 兼容格式调用",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string", "enum": ["text", "image_url", "video_url"] },
+                "text": { "type": "string", "description": "文本内容" },
+                "image_url": { "oneOf": [{ "type": "string" }, { "type": "object", "properties": { "url": { "type": "string" } } }], "description": "图片 URL" },
+                "video_url": { "oneOf": [{ "type": "string" }, { "type": "object", "properties": { "url": { "type": "string" } } }], "description": "视频 URL" }
+              }
+            },
+            "example": [
+              { "type": "text", "text": "A cinematic white horse running through a neon city street" },
+              { "type": "image_url", "image_url": { "url": "https://example.com/first-frame.jpg" } }
+            ]
+          },
+          "resolution": {
+            "type": "string",
+            "description": "可选。输出分辨率。常见值 `720P`、`1080P`",
+            "enum": ["720P", "1080P"],
+            "example": "720P"
+          },
+          "ratio": {
+            "type": "string",
+            "description": "可选。输出宽高比。如 `16:9`、`9:16`",
+            "example": "16:9"
+          },
+          "duration": {
+            "type": "integer",
+            "description": "可选。生成时长（秒），按秒计费",
+            "example": 5
+          },
+          "watermark": {
+            "type": "boolean",
+            "description": "可选。是否添加水印"
+          },
+          "seed": {
+            "type": "integer",
+            "description": "可选。随机种子，用于在相同参数下复现相近结果"
+          }
+        },
+        "examples": {
+          "happyhorse_t2v": {
+            "summary": "文生视频",
+            "value": {
+              "model": "happyhorse-1.0",
+              "mode": "t2v",
+              "prompt": "A white horse running through a neon city street, cinematic",
+              "resolution": "720P",
+              "ratio": "16:9",
+              "duration": 5
+            }
+          },
+          "happyhorse_i2v": {
+            "summary": "首帧图生视频",
+            "value": {
+              "model": "happyhorse-1.0",
+              "mode": "i2v",
+              "prompt": "The camera slowly pushes in, natural motion",
+              "images": ["https://example.com/first-frame.jpg"],
+              "resolution": "720P",
+              "duration": 5
+            }
+          },
+          "happyhorse_r2v": {
+            "summary": "多参考图生视频",
+            "value": {
+              "model": "happyhorse-1.0",
+              "mode": "r2v",
+              "prompt": "Keep the character and product consistent in a short cinematic clip",
+              "images": ["https://example.com/ref-1.jpg", "https://example.com/ref-2.jpg"],
+              "resolution": "720P",
+              "ratio": "16:9",
+              "duration": 5
+            }
+          },
+          "happyhorse_sora_t2v": {
+            "summary": "Sora 兼容格式 - 文生视频",
+            "value": {
+              "model": "happyhorse-1.0",
+              "mode": "t2v",
+              "content": [
+                { "type": "text", "text": "A cinematic white horse running through a neon city street" }
+              ],
+              "duration": 5,
+              "resolution": "720P",
+              "ratio": "16:9"
+            }
           }
         },
         "example": {
           "model": "happyhorse-1.0",
-          "video_provider": "happyhorse",
-          "mode": "text_to_video",
-          "prompt": "一辆银色跑车穿过雨夜城市街道，低机位跟拍，电影感灯光",
-          "size": "16:9",
-          "seconds": "5"
+          "mode": "t2v",
+          "prompt": "A white horse running through a neon city street, cinematic",
+          "resolution": "720P",
+          "ratio": "16:9",
+          "duration": 5
         }
       },
 
@@ -770,7 +1124,7 @@
           "progress": { "type": "integer", "description": "任务进度百分比（0-100）" },
           "created_at": { "type": "integer", "description": "任务创建时间戳（Unix）" },
           "completed_at": { "type": "integer", "description": "完成时间戳（完成时返回）" },
-          "expires_at": { "type": "integer", "description": "视频 URL 过期时间戳（完成时返回，过期后视频不可访问）" }
+          "expires_at": { "type": "integer", "description": "视频过期时间戳（完成时返回，过期后无法下载）" }
         }
       },
 

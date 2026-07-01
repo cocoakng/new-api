@@ -310,9 +310,9 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	switch resTask.Status {
 	case "queued", "pending":
 		taskResult.Status = model.TaskStatusQueued
-	case "processing", "in_progress":
+	case "processing", "in_progress", "running":
 		taskResult.Status = model.TaskStatusInProgress
-	case "completed":
+	case "completed", "succeeded":
 		taskResult.Status = model.TaskStatusSuccess
 		// Url intentionally left empty — the caller constructs the proxy URL using the public task ID
 	case "failed", "cancelled":
@@ -332,10 +332,32 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
-	data := task.Data
-	var err error
-	if data, err = sjson.SetBytes(data, "id", task.TaskID); err != nil {
-		return nil, errors.Wrap(err, "set id failed")
+	// 从存储的原始数据中提取需要的字段
+	var src struct {
+		Status      string `json:"status"`
+		Progress    int    `json:"progress"`
+		CreatedAt   int64  `json:"created_at"`
+		CompletedAt int64  `json:"completed_at"`
+		ExpiresAt   int64  `json:"expires_at"`
+		Model       string `json:"model"`
+		Object      string `json:"object"`
 	}
-	return data, nil
+	_ = common.Unmarshal(task.Data, &src)
+
+	resp := map[string]interface{}{
+		"id":         task.TaskID,
+		"object":     "video",
+		"model":      src.Model,
+		"status":     src.Status,
+		"progress":   src.Progress,
+		"created_at": src.CreatedAt,
+	}
+	if src.CompletedAt > 0 {
+		resp["completed_at"] = src.CompletedAt
+	}
+	if src.ExpiresAt > 0 {
+		resp["expires_at"] = src.ExpiresAt
+	}
+
+	return common.Marshal(resp)
 }
