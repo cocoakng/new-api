@@ -107,8 +107,13 @@ func VideoProxy(c *gin.Context) {
 			return
 		}
 	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora:
-		videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())
-		req.Header.Set("Authorization", "Bearer "+channel.Key)
+		// Prefer stored ResultURL if it's a direct upstream CDN URL
+		if resultURL := task.GetResultURL(); resultURL != "" && !strings.Contains(resultURL, "ai-link.shop") {
+			videoURL = resultURL
+		} else {
+			videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())
+			req.Header.Set("Authorization", "Bearer "+channel.Key)
+		}
 	default:
 		// Video URL is stored in PrivateData.ResultURL (fallback to FailReason for old data)
 		videoURL = task.GetResultURL()

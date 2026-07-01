@@ -38,17 +38,24 @@ type ImageURL struct {
 }
 
 type responseTask struct {
-	ID                 string `json:"id"`
-	TaskID             string `json:"task_id,omitempty"` //兼容旧接口
-	Object             string `json:"object"`
-	Model              string `json:"model"`
-	Status             string `json:"status"`
-	Progress           int    `json:"progress"`
-	CreatedAt          int64  `json:"created_at"`
-	CompletedAt        int64  `json:"completed_at,omitempty"`
-	ExpiresAt          int64  `json:"expires_at,omitempty"`
-	Seconds            string `json:"seconds,omitempty"`
-	Size               string `json:"size,omitempty"`
+	ID          string `json:"id"`
+	TaskID      string `json:"task_id,omitempty"` //兼容旧接口
+	Object      string `json:"object"`
+	Model       string `json:"model"`
+	Status      string `json:"status"`
+	Progress    int    `json:"progress"`
+	CreatedAt   int64  `json:"created_at"`
+	CompletedAt int64  `json:"completed_at,omitempty"`
+	ExpiresAt   int64  `json:"expires_at,omitempty"`
+	Seconds     string `json:"seconds,omitempty"`
+	Size        string `json:"size,omitempty"`
+	VideoURL    string `json:"video_url,omitempty"`
+	Result      *struct {
+		Type string `json:"type"`
+		Data []struct {
+			URL string `json:"url"`
+		} `json:"data"`
+	} `json:"result,omitempty"`
 	RemixedFromVideoID string `json:"remixed_from_video_id,omitempty"`
 	Error              *struct {
 		Message string `json:"message"`
@@ -313,7 +320,11 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskResult.Status = model.TaskStatusInProgress
 	case "completed", "succeeded":
 		taskResult.Status = model.TaskStatusSuccess
-		// Url intentionally left empty — the caller constructs the proxy URL using the public task ID
+		if resTask.VideoURL != "" {
+			taskResult.Url = resTask.VideoURL
+		} else if resTask.Result != nil && len(resTask.Result.Data) > 0 {
+			taskResult.Url = resTask.Result.Data[0].URL
+		}
 	case "failed", "cancelled":
 		taskResult.Status = model.TaskStatusFailure
 		if resTask.Error != nil {
