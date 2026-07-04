@@ -124,6 +124,165 @@
                   { "$ref": "#/components/schemas/DoubaoSeedance20FastRequest" },
                   { "$ref": "#/components/schemas/HappyHorse10Request" }
                 ]
+              },
+              "examples": {
+                "seedance_t2v": {
+                  "summary": "Seedance 2.0 - 文生视频",
+                  "value": {
+                    "model": "doubao-seedance-2-0-260128",
+                    "prompt": "夜晚城市街道，一辆银色跑车驶过雨后路面，电影感镜头",
+                    "duration": 5,
+                    "size": "1280x720"
+                  }
+                },
+                "seedance_i2v": {
+                  "summary": "Seedance 2.0 - 图生视频",
+                  "value": {
+                    "model": "doubao-seedance-2-0-260128",
+                    "mode": "i2v",
+                    "prompt": "让画面中的人物自然转头微笑",
+                    "image_urls": ["https://example.com/first-frame.png"],
+                    "duration": 5,
+                    "size": "1280x720"
+                  }
+                },
+                "seedance_i2v_first_last": {
+                  "summary": "Seedance 2.0 - 首尾帧控制",
+                  "value": {
+                    "model": "doubao-seedance-2-0-260128",
+                    "mode": "i2v_first_last",
+                    "prompt": "A camera moves from first frame to last frame naturally",
+                    "image_urls": ["https://example.com/first.jpg"],
+                    "end_image_url": "https://example.com/last.jpg",
+                    "seconds": 5,
+                    "size": "1280x720"
+                  }
+                },
+                "seedance_reference_material": {
+                  "summary": "Seedance 2.0 - 全能参考模式",
+                  "value": {
+                    "model": "doubao-seedance-2-0-260128",
+                    "mode": "reference_material",
+                    "prompt": "Blend image and short reference video into a coherent cinematic clip",
+                    "reference_images": ["https://example.com/ref-1.jpg", "https://example.com/ref-2.jpg"],
+                    "video_urls": ["https://example.com/ref-video.mp4"],
+                    "audio_urls": ["https://example.com/ref-audio.mp3"],
+                    "seconds": 5,
+                    "size": "1280x720"
+                  }
+                },
+                "seedance_content_mode": {
+                  "summary": "Seedance 2.0 - 火山方舟 content 模式",
+                  "value": {
+                    "model": "doubao-seedance-2-0-260128",
+                    "mode": "reference_material",
+                    "content": [
+                      { "type": "text", "text": "A cinematic teaser video with fast-paced action cuts" },
+                      { "type": "image_url", "image_url": { "url": "https://example.com/ref-1.jpg" }, "role": "reference_image", "name": "1" },
+                      { "type": "video_url", "video_url": { "url": "https://example.com/ref-video.mp4" }, "role": "reference_video", "name": "2" }
+                    ],
+                    "seconds": 5,
+                    "size": "1280x720"
+                  }
+                },
+                "seedance_fast_t2v": {
+                  "summary": "Seedance 2.0 Fast - 文生视频",
+                  "value": {
+                    "model": "doubao-seedance-2-0-fast-260128",
+                    "prompt": "让画面中的人物自然转头微笑，背景有轻微景深变化",
+                    "duration": 5,
+                    "size": "1280x720"
+                  }
+                },
+                "seedance_fast_i2v": {
+                  "summary": "Seedance 2.0 Fast - 图生视频",
+                  "value": {
+                    "model": "doubao-seedance-2-0-fast-260128",
+                    "mode": "i2v",
+                    "prompt": "让画面中的人物自然转头微笑",
+                    "image_urls": ["https://example.com/first-frame.png"],
+                    "duration": 5,
+                    "size": "1280x720"
+                  }
+                },
+                "seedance_fast_i2v_first_last": {
+                  "summary": "Seedance 2.0 Fast - 首尾帧控制",
+                  "value": {
+                    "model": "doubao-seedance-2-0-fast-260128",
+                    "mode": "i2v_first_last",
+                    "prompt": "Smooth transition from start to end frame",
+                    "image_urls": ["https://example.com/start.jpg"],
+                    "end_image_url": "https://example.com/end.jpg",
+                    "duration": 5,
+                    "size": "1280x720"
+                  }
+                },
+                "seedance_fast_reference_material": {
+                  "summary": "Seedance 2.0 Fast - 全能参考模式",
+                  "value": {
+                    "model": "doubao-seedance-2-0-fast-260128",
+                    "mode": "reference_material",
+                    "prompt": "Combine reference images into a coherent short video",
+                    "reference_images": ["https://example.com/ref-1.jpg", "https://example.com/ref-2.jpg"],
+                    "video_urls": ["https://example.com/ref-video.mp4"],
+                    "duration": 5,
+                    "size": "1280x720"
+                  }
+                },
+                "happyhorse_t2v": {
+                  "summary": "HappyHorse - 文生视频",
+                  "value": {
+                    "model": "happyhorse-1.0",
+                    "mode": "t2v",
+                    "content": [
+                      { "type": "text", "text": "A white horse running through a neon city street, cinematic" }
+                    ],
+                    "resolution": "720P",
+                    "ratio": "16:9",
+                    "duration": 5
+                  }
+                },
+                "happyhorse_i2v": {
+                  "summary": "HappyHorse - 首帧图生视频",
+                  "value": {
+                    "model": "happyhorse-1.0",
+                    "mode": "i2v",
+                    "content": [
+                      { "type": "text", "text": "The subject walks forward naturally" },
+                      { "type": "image_url", "image_url": { "url": "https://example.com/first-frame.jpg" } }
+                    ],
+                    "resolution": "720P",
+                    "duration": 5
+                  }
+                },
+                "happyhorse_r2v": {
+                  "summary": "HappyHorse - 多参考图生视频",
+                  "value": {
+                    "model": "happyhorse-1.0",
+                    "mode": "r2v",
+                    "content": [
+                      { "type": "text", "text": "Keep the character and product consistent in a cinematic shot" },
+                      { "type": "image_url", "image_url": { "url": "https://example.com/ref-1.jpg" } },
+                      { "type": "image_url", "image_url": { "url": "https://example.com/ref-2.jpg" } }
+                    ],
+                    "resolution": "720P",
+                    "ratio": "16:9",
+                    "duration": 5
+                  }
+                },
+                "happyhorse_video_edit": {
+                  "summary": "HappyHorse - 视频编辑",
+                  "value": {
+                    "model": "happyhorse-1.0",
+                    "mode": "video_edit",
+                    "content": [
+                      { "type": "text", "text": "Change the jacket to a striped sweater and keep the motion natural" },
+                      { "type": "video_url", "video_url": { "url": "https://example.com/input.mp4" } },
+                      { "type": "image_url", "image_url": { "url": "https://example.com/reference.jpg" } }
+                    ],
+                    "resolution": "720P"
+                  }
+                }
               }
             }
           }
@@ -543,8 +702,8 @@
           },
           "seconds": {
             "type": "string",
-            "description": "视频时长（秒）。可选值：\"6\"、\"10\"、\"15\"",
-            "enum": ["6", "10", "15"],
+            "description": "视频时长（秒）。可选值：\"6\"、\"10\"",
+            "enum": ["6", "10"],
             "default": "10",
             "example": "10"
           },
@@ -590,25 +749,26 @@
           },
           "prompt": {
             "type": "string",
-            "description": "必填。视频生成主描述。支持中英文，最多 4000 字符，建议 500 字以内。明确描述场景、主体动作、镜头运动和风格",
+            "description": "必填。视频生成主描述。支持中英文，最多 4000 字符，建议 500 字以内。明确描述场景、主体动作、镜头运动和风格。使用建议：文生视频优先 `-fast` 版本（价格更低），图生视频优先标准版，复杂参考素材场景优先使用 `content` 数组",
             "example": "参考素材生成一段剧情短视频"
           },
           "mode": {
             "type": "string",
-            "description": "可选。兼容模式字段。`t2v`（文生视频）、`i2v`（图生视频）、`i2v_first_last`（首尾帧控制）、`reference_images`（多参考图）、`reference_material`（全能参考模式，建议配合 content 使用）",
+            "description": "可选。兼容模式字段。`t2v`（文生视频）、`i2v`（图生视频）、`i2v_first_last`（首尾帧控制）、`reference_images`（多参考图）、`reference_material`（全能参考模式，建议配合 `content` 使用）",
             "enum": ["t2v", "i2v", "i2v_first_last", "reference_images", "reference_material"],
             "example": "reference_material"
           },
           "function_mode": {
             "type": "string",
-            "description": "可选。高级功能模式，如 `omni_reference` 用于全能参考模式",
+            "description": "可选。高级功能模式",
             "example": "omni_reference"
           },
           "content": {
             "type": "array",
-            "description": "可选。火山方舟 content 数组，按顺序混排文本与素材项。复杂参考素材场景推荐使用此字段。文本项使用 `{ \"type\": \"text\", \"text\": \"...\" }`；图片、视频、音频项分别使用 `image_url`、`video_url`、`audio_url` 对象并在其中放 `url`，可配合 `role`（如 `reference_image`、`reference_video`、`reference_audio`）和 `name` 供文本引用",
+            "description": "可选。火山方舟 content 数组，按顺序混排文本与素材项。当 `mode=reference_material` 时推荐使用。参考素材限制：参考图最多 9 张，参考视频/音频各最多 3 个，总时长不超过 15s，单个 2-15s。文本项使用 `{ \"type\": \"text\", \"text\": \"...\" }`；图片、视频、音频项分别使用 `image_url`、`video_url`、`audio_url` 对象并在其中放 `url`，可配合 `role`（如 `reference_image`、`reference_video`、`reference_audio`）和 `name` 供文本引用",
             "items": {
               "type": "object",
+              "required": ["type"],
               "properties": {
                 "type": {
                   "type": "string",
@@ -727,7 +887,8 @@
           },
           "resolution": {
             "type": "string",
-            "description": "可选。输出分辨率，如 `720P`、`1080P`"
+            "description": "可选。输出分辨率，如 `720P`、`1080P`",
+            "enum": ["720P", "1080P"]
           },
           "quality": {
             "type": "string",
@@ -756,6 +917,17 @@
               "size": "1280x720"
             }
           },
+          "seedance_i2v": {
+            "summary": "图生视频 (首帧)",
+            "value": {
+              "model": "doubao-seedance-2-0-260128",
+              "mode": "i2v",
+              "prompt": "让画面中的人物自然转头微笑，背景有轻微景深变化",
+              "image_urls": ["https://example.com/first-frame.png"],
+              "duration": 5,
+              "size": "1280x720"
+            }
+          },
           "seedance_i2v_first_last": {
             "summary": "首尾帧控制",
             "value": {
@@ -765,6 +937,17 @@
               "image_urls": ["https://example.com/first.jpg"],
               "end_image_url": "https://example.com/last.jpg",
               "seconds": 5,
+              "size": "1280x720"
+            }
+          },
+          "seedance_reference_images": {
+            "summary": "多参考图模式",
+            "value": {
+              "model": "doubao-seedance-2-0-260128",
+              "mode": "reference_images",
+              "prompt": "Keep the character appearance consistent across frames",
+              "reference_images": ["https://example.com/char-1.jpg", "https://example.com/char-2.jpg"],
+              "duration": 5,
               "size": "1280x720"
             }
           },
@@ -788,7 +971,8 @@
               "mode": "reference_material",
               "content": [
                 { "type": "text", "text": "A cinematic teaser video with fast-paced action cuts" },
-                { "type": "image_url", "image_url": { "url": "https://example.com/ref-1.jpg" } }
+                { "type": "image_url", "image_url": { "url": "https://example.com/ref-1.jpg" }, "role": "reference_image", "name": "1" },
+                { "type": "video_url", "video_url": { "url": "https://example.com/ref-video.mp4" }, "role": "reference_video", "name": "2" }
               ],
               "seconds": 5,
               "size": "1280x720"
@@ -820,27 +1004,29 @@
           },
           "mode": {
             "type": "string",
-            "description": "可选。兼容模式字段。`t2v`（文生视频）、`i2v`（图生视频）、`i2v_first_last`（首尾帧控制）、`reference_images`（多参考图）、`reference_material`（全能参考模式）",
+            "description": "可选。兼容模式字段。`t2v`（文生视频）、`i2v`（图生视频）、`i2v_first_last`（首尾帧控制）、`reference_images`（多参考图）、`reference_material`（全能参考模式，建议配合 `content` 使用）",
             "enum": ["t2v", "i2v", "i2v_first_last", "reference_images", "reference_material"],
             "example": "i2v"
           },
           "function_mode": {
             "type": "string",
-            "description": "可选。高级功能模式，如 `omni_reference` 用于全能参考模式"
+            "description": "可选。高级功能模式",
+            "example": "omni_reference"
           },
           "content": {
             "type": "array",
-            "description": "可选。火山方舟 content 数组，格式与 DoubaoSeedance20Request 相同。复杂参考素材场景推荐使用",
+            "description": "可选。火山方舟 content 数组，格式与 DoubaoSeedance20Request 相同。当 `mode=reference_material` 时推荐使用。参考素材限制：参考图最多 9 张，参考视频/音频各最多 3 个，总时长不超过 15s，单个 2-15s。复杂参考素材场景推荐使用",
             "items": {
               "type": "object",
+              "required": ["type"],
               "properties": {
-                "type": { "type": "string", "enum": ["text", "image_url", "video_url", "audio_url"] },
-                "text": { "type": "string" },
-                "image_url": { "oneOf": [{ "type": "string" }, { "type": "object", "properties": { "url": { "type": "string" } } }] },
-                "video_url": { "oneOf": [{ "type": "string" }, { "type": "object", "properties": { "url": { "type": "string" } } }] },
-                "audio_url": { "oneOf": [{ "type": "string" }, { "type": "object", "properties": { "url": { "type": "string" } } }] },
-                "role": { "type": "string" },
-                "name": { "type": "string" }
+                "type": { "type": "string", "enum": ["text", "image_url", "video_url", "audio_url"], "description": "内容项类型" },
+                "text": { "type": "string", "description": "文本内容" },
+                "image_url": { "oneOf": [{ "type": "string" }, { "type": "object", "properties": { "url": { "type": "string" } } }], "description": "图片 URL" },
+                "video_url": { "oneOf": [{ "type": "string" }, { "type": "object", "properties": { "url": { "type": "string" } } }], "description": "视频 URL" },
+                "audio_url": { "oneOf": [{ "type": "string" }, { "type": "object", "properties": { "url": { "type": "string" } } }], "description": "音频 URL" },
+                "role": { "type": "string", "description": "素材用途标识" },
+                "name": { "type": "string", "description": "素材名称" }
               }
             }
           },
@@ -915,7 +1101,8 @@
           },
           "resolution": {
             "type": "string",
-            "description": "可选。输出分辨率，如 `720P`、`1080P`"
+            "description": "可选。输出分辨率，如 `720P`、`1080P`",
+            "enum": ["720P", "1080P"]
           },
           "quality": {
             "type": "string",
@@ -945,12 +1132,60 @@
             }
           },
           "seedance_fast_i2v": {
-            "summary": "图生视频",
+            "summary": "图生视频 (首帧)",
             "value": {
               "model": "doubao-seedance-2-0-fast-260128",
               "mode": "i2v",
               "prompt": "让画面中的人物自然转头微笑",
               "image_urls": ["https://example.com/first-frame.png"],
+              "duration": 5,
+              "size": "1280x720"
+            }
+          },
+          "seedance_fast_i2v_first_last": {
+            "summary": "首尾帧控制",
+            "value": {
+              "model": "doubao-seedance-2-0-fast-260128",
+              "mode": "i2v_first_last",
+              "prompt": "Smooth transition from start to end frame",
+              "image_urls": ["https://example.com/start.jpg"],
+              "end_image_url": "https://example.com/end.jpg",
+              "duration": 5,
+              "size": "1280x720"
+            }
+          },
+          "seedance_fast_reference_images": {
+            "summary": "多参考图模式",
+            "value": {
+              "model": "doubao-seedance-2-0-fast-260128",
+              "mode": "reference_images",
+              "prompt": "Keep character and scene consistent in a short cinematic clip",
+              "reference_images": ["https://example.com/char.jpg", "https://example.com/scene.jpg"],
+              "duration": 5,
+              "size": "1280x720"
+            }
+          },
+          "seedance_fast_reference_material": {
+            "summary": "全能参考模式",
+            "value": {
+              "model": "doubao-seedance-2-0-fast-260128",
+              "mode": "reference_material",
+              "prompt": "Combine reference images into a coherent short video",
+              "reference_images": ["https://example.com/ref-1.jpg", "https://example.com/ref-2.jpg"],
+              "video_urls": ["https://example.com/ref-video.mp4"],
+              "duration": 5,
+              "size": "1280x720"
+            }
+          },
+          "seedance_fast_content_mode": {
+            "summary": "火山方舟 content 模式",
+            "value": {
+              "model": "doubao-seedance-2-0-fast-260128",
+              "mode": "reference_material",
+              "content": [
+                { "type": "text", "text": "A cinematic product showcase video" },
+                { "type": "image_url", "image_url": { "url": "https://example.com/product.jpg" }, "role": "reference_image" }
+              ],
               "duration": 5,
               "size": "1280x720"
             }
@@ -972,65 +1207,76 @@
         "properties": {
           "model": {
             "type": "string",
-            "description": "固定值 `happyhorse-1.0`",
+            "description": "HappyHorse 对外模型名。聚合模型 `happyhorse-1.0` 需配合 `mode` 使用",
             "example": "happyhorse-1.0"
           },
           "mode": {
             "type": "string",
-            "description": "聚合模型（happyhorse-1.0）模式字段。`t2v`（文生视频）、`i2v`（首帧图生视频）、`r2v`（多参考图生视频）、`video_edit`（视频编辑）。使用固定子模型（如 happyhorse-1.0-t2v）时可不传",
+            "description": "聚合模型模式，常见值为 `t2v`、`i2v`、`r2v`、`video_edit`。固定子模型可不传",
             "enum": ["t2v", "i2v", "r2v", "video_edit"],
             "example": "t2v"
           },
           "prompt": {
             "type": "string",
-            "description": "必填。视频生成或编辑提示词。多参考图模式下建议在提示词中说明每张图的用途",
+            "description": "视频生成或编辑提示词",
             "example": "A white horse running through a neon city street, cinematic"
-          },
-          "images": {
-            "type": "array",
-            "items": { "type": "string", "format": "uri" },
-            "description": "可选。参考素材 URL 数组。i2v 模式传1张首帧图；r2v 模式传多张参考图；video_edit 模式传原视频URL和风格参考图"
           },
           "content": {
             "type": "array",
-            "description": "可选。Sora 兼容 content 数组，按顺序混排文本与素材项。推荐用于 Sora 兼容格式调用",
+            "description": "Sora 兼容 content 数组，按顺序混排文本与素材项。推荐用于 Sora 兼容格式调用。参考素材限制：参考图最多 9 张，参考视频/音频各最多 3 个，总时长不超过 15s，单个 2-15s。文本项使用 `{ \"type\": \"text\", \"text\": \"...\" }`；图片、视频项分别使用 `image_url`、`video_url` 对象",
             "items": {
               "type": "object",
+              "required": ["type"],
               "properties": {
-                "type": { "type": "string", "enum": ["text", "image_url", "video_url"] },
-                "text": { "type": "string", "description": "文本内容" },
-                "image_url": { "oneOf": [{ "type": "string" }, { "type": "object", "properties": { "url": { "type": "string" } } }], "description": "图片 URL" },
-                "video_url": { "oneOf": [{ "type": "string" }, { "type": "object", "properties": { "url": { "type": "string" } } }], "description": "视频 URL" }
+                "type": {
+                  "type": "string",
+                  "enum": ["text", "image_url", "video_url"],
+                  "description": "内容项类型"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "文本内容，仅 type=text 时使用"
+                },
+                "image_url": {
+                  "oneOf": [
+                    { "type": "string" },
+                    { "type": "object", "properties": { "url": { "type": "string" } } }
+                  ],
+                  "description": "图片 URL，推荐对象写法：`{\"url\":\"https://...\"}`"
+                },
+                "video_url": {
+                  "oneOf": [
+                    { "type": "string" },
+                    { "type": "object", "properties": { "url": { "type": "string" } } }
+                  ],
+                  "description": "视频 URL，推荐对象写法：`{\"url\":\"https://...\"}`"
+                }
               }
-            },
-            "example": [
-              { "type": "text", "text": "A cinematic white horse running through a neon city street" },
-              { "type": "image_url", "image_url": { "url": "https://example.com/first-frame.jpg" } }
-            ]
+            }
           },
           "resolution": {
             "type": "string",
-            "description": "可选。输出分辨率。常见值 `720P`、`1080P`",
+            "description": "输出分辨率，常见值 `720P`、`1080P`",
             "enum": ["720P", "1080P"],
             "example": "720P"
           },
           "ratio": {
             "type": "string",
-            "description": "可选。输出宽高比。如 `16:9`、`9:16`",
+            "description": "输出宽高比，文生视频和参考生视频常用",
             "example": "16:9"
           },
           "duration": {
             "type": "integer",
-            "description": "可选。生成时长（秒），按秒计费",
+            "description": "生成时长（秒），按秒计费",
             "example": 5
           },
           "watermark": {
             "type": "boolean",
-            "description": "可选。是否添加水印"
+            "description": "是否添加水印"
           },
           "seed": {
             "type": "integer",
-            "description": "可选。随机种子，用于在相同参数下复现相近结果"
+            "description": "随机种子"
           }
         },
         "examples": {
@@ -1039,7 +1285,9 @@
             "value": {
               "model": "happyhorse-1.0",
               "mode": "t2v",
-              "prompt": "A white horse running through a neon city street, cinematic",
+              "content": [
+                { "type": "text", "text": "A white horse running through a neon city street, cinematic" }
+              ],
               "resolution": "720P",
               "ratio": "16:9",
               "duration": 5
@@ -1050,42 +1298,49 @@
             "value": {
               "model": "happyhorse-1.0",
               "mode": "i2v",
-              "prompt": "The camera slowly pushes in, natural motion",
-              "images": ["https://example.com/first-frame.jpg"],
+              "content": [
+                { "type": "text", "text": "The subject walks forward naturally" },
+                { "type": "image_url", "image_url": { "url": "https://example.com/first-frame.jpg" } }
+              ],
               "resolution": "720P",
               "duration": 5
             }
           },
           "happyhorse_r2v": {
-            "summary": "多参考图生视频",
+            "summary": "参考生视频 (多参考图)",
             "value": {
               "model": "happyhorse-1.0",
               "mode": "r2v",
-              "prompt": "Keep the character and product consistent in a short cinematic clip",
-              "images": ["https://example.com/ref-1.jpg", "https://example.com/ref-2.jpg"],
+              "content": [
+                { "type": "text", "text": "Keep the character and product consistent in a cinematic shot" },
+                { "type": "image_url", "image_url": { "url": "https://example.com/ref-1.jpg" } },
+                { "type": "image_url", "image_url": { "url": "https://example.com/ref-2.jpg" } }
+              ],
               "resolution": "720P",
               "ratio": "16:9",
               "duration": 5
             }
           },
-          "happyhorse_sora_t2v": {
-            "summary": "Sora 兼容格式 - 文生视频",
+          "happyhorse_video_edit": {
+            "summary": "视频编辑",
             "value": {
               "model": "happyhorse-1.0",
-              "mode": "t2v",
+              "mode": "video_edit",
               "content": [
-                { "type": "text", "text": "A cinematic white horse running through a neon city street" }
+                { "type": "text", "text": "Change the jacket to a striped sweater and keep the motion natural" },
+                { "type": "video_url", "video_url": { "url": "https://example.com/input.mp4" } },
+                { "type": "image_url", "image_url": { "url": "https://example.com/reference.jpg" } }
               ],
-              "duration": 5,
-              "resolution": "720P",
-              "ratio": "16:9"
+              "resolution": "720P"
             }
           }
         },
         "example": {
           "model": "happyhorse-1.0",
           "mode": "t2v",
-          "prompt": "A white horse running through a neon city street, cinematic",
+          "content": [
+            { "type": "text", "text": "A white horse running through a neon city street, cinematic" }
+          ],
           "resolution": "720P",
           "ratio": "16:9",
           "duration": 5
