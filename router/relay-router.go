@@ -86,7 +86,14 @@ func SetRelayRouter(router *gin.Engine) {
 		// 文件上传到 R2（同样不走 Distribute 中间件）
 		relayV1Router.POST("/files/upload", controller.UploadFile)
 
-		//http router
+		// Image proxy (no auth required, proxied upstream images)
+		imageProxyRouter := router.Group("/v1")
+		imageProxyRouter.Use(middleware.RouteTag("relay"))
+		{
+			imageProxyRouter.GET("/images/proxy/:id", controller.ImageProxy)
+		}
+
+		// http router
 		httpRouter := relayV1Router.Group("")
 		httpRouter.Use(middleware.Distribute())
 

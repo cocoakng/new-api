@@ -39,6 +39,12 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
+	// 替换图片 URL 为代理地址
+	responseBody, err = service.ReplaceImageURLInResponse(responseBody)
+	if err != nil {
+		logger.LogDebug(c, "Failed to replace image URLs: %v", err)
+	}
+
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
@@ -114,6 +120,8 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 				usage = &usageResp.Usage
 			}
 		}
+		// 替换流式响应中的图片 URL 为代理地址
+		raw = service.ReplaceImageURLInResponseStream(raw)
 		writeOpenaiImageStreamChunk(c, raw)
 	})
 
@@ -229,7 +237,13 @@ func OpenaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 			"created_at": created,
 		}
 		if image.Url != "" {
-			payload["url"] = image.Url
+			id, err := service.CacheImageURL(image.Url)
+			if err != nil {
+				logger.LogDebug(c, "Failed to cache image URL: %v", err)
+				payload["url"] = image.Url
+			} else {
+				payload["url"] = "/v1/images/proxy/" + id
+			}
 		}
 		if image.B64Json != "" {
 			payload["b64_json"] = image.B64Json
