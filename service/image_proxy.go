@@ -58,10 +58,52 @@ func ReplaceImageURLInResponse(body []byte) ([]byte, error) {
 
 // ReplaceImageURLInResponseStream handles SSE stream data chunks.
 // It looks for JSON objects with a "url" field and replaces upstream URLs
-// with proxy URLs. If the data is not a valid JSON object or has no url field,
+// with proxy URLs. It also handles the OpenAI image streaming format where
+// the "data" array contains image objects with "url" fields.
+// If the data is not a valid JSON object or has no url field,
 // it returns the original data unchanged.
 func ReplaceImageURLInResponseStream(data []byte) []byte {
-	var parsed struct {
+	// Try the array-based format first (e.g., gpt-image-2 SSE events):
+	// {"object": "image.generation.result", "data": [{"url": "..."}]}
+	var arrayParsed struct {
+		Data []struct {
+			Url           string `json:"url,omitempty"`
+			B64Json       string `json:"b64_json,omitempty"`
+			RevisedPrompt string `json:"revised_prompt,omitempty"`
+		} `json:"data,omitempty"`
+		Object       string          `json:"object,omitempty"`
+		Created      int64           `json:"created,omitempty"`
+		Model        string          `json:"model,omitempty"`
+		Index        int             `json:"index,omitempty"`
+		Total        int             `json:"total,omitempty"`
+		ProgressText string          `json:"progress_text,omitempty"`
+		Usage        json.RawMessage `json:"usage,omitempty"`
+	}
+
+	if err := common.Unmarshal(data, &arrayParsed); err == nil && len(arrayParsed.Data) > 0 {
+		hasChanges := false
+		for i := range arrayParsed.Data {
+			if arrayParsed.Data[i].Url != "" {
+				id, err := CacheImageURL(arrayParsed.Data[i].Url)
+				if err != nil {
+					logger.LogError(context.Background(), fmt.Sprintf("Failed to cache image URL: %v", err))
+					continue
+				}
+				arrayParsed.Data[i].Url = "/v1/images/proxy/" + id
+				hasChanges = true
+			}
+		}
+		if hasChanges {
+			result, err := common.Marshal(arrayParsed)
+			if err == nil {
+				return result
+			}
+		}
+		return data
+	}
+
+	// Fall back to flat format: {"url": "...", "type": "..."}
+	var flatParsed struct {
 		Url           string          `json:"url,omitempty"`
 		B64Json       string          `json:"b64_json,omitempty"`
 		RevisedPrompt string          `json:"revised_prompt,omitempty"`
@@ -70,19 +112,17 @@ func ReplaceImageURLInResponseStream(data []byte) []byte {
 		Usage         json.RawMessage `json:"usage,omitempty"`
 	}
 
-	if err := common.Unmarshal(data, &parsed); err != nil {
-		return data
-	}
-
-	if parsed.Url != "" {
-		id, err := CacheImageURL(parsed.Url)
-		if err != nil {
-			logger.LogError(context.Background(), fmt.Sprintf("Failed to cache image URL: %v", err))
-			return data
+	if err := common.Unmarshal(data, &flatParsed); err == nil {
+		if flatParsed.Url != "" {
+			id, err := CacheImageURL(flatParsed.Url)
+			if err != nil {
+				logger.LogError(context.Background(), fmt.Sprintf("Failed to cache image URL: %v", err))
+				return data
+			}
+			flatParsed.Url = "/v1/images/proxy/" + id
+			result, _ := common.Marshal(flatParsed)
+			return result
 		}
-		parsed.Url = "/v1/images/proxy/" + id
-		result, _ := common.Marshal(parsed)
-		return result
 	}
 
 	return data
