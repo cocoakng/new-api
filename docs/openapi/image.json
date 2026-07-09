@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "图像生成 API",
-    "description": "支持文生图和图生图。\n\n## 调用方式\n\n```\nPOST /v1/images/generations  → 文生图 / 图生图（JSON 请求体，参考图片传 URL）\nPOST /v1/images/edits        → 图生图（multipart/form-data，参考图片传二进制文件）\n```\n\n## 认证方式\n\n所有请求需在 Header 中携带 API Key：\n\n```\nAuthorization: Bearer YOUR_API_KEY\n```\n\n## 可用模型\n\n| 模型 | 说明 |\n|------|------|\n| `gpt-image-2` | 通用图像生成 |",
+    "description": "支持文生图和图生图。\n\n## 调用方式\n\n```\nPOST /v1/images/generations  → 文生图 / 图生图（JSON 请求体，参考图片传 URL）\nPOST /v1/images/edits        → 图生图（multipart/form-data，参考图片传二进制文件）\n```\n\n## 认证方式\n\n所有请求需在 Header 中携带 API Key：\n\n```\nAuthorization: Bearer YOUR_API_KEY\n```\n\n## 可用模型\n\n| 模型 | 说明 |\n|------|------|\n| `gpt-image-2` | 通用图像生成，支持任意分辨率、高质量输出 |",
     "version": "1.0.0"
   },
   "servers": [
@@ -111,7 +111,7 @@
           },
           "prompt": {
             "type": "string",
-            "description": "图片生成提示词。建议写清主体、场景、风格、构图和画质要求",
+            "description": "图片生成提示词，最长 32,000 字符。建议写清主体、场景、风格、构图和画质要求",
             "example": "一只在星空下奔跑的白色独角兽，梦幻风格，高清"
           },
           "n": {
@@ -124,42 +124,42 @@
           },
           "size": {
             "type": "string",
-            "description": "图片尺寸。支持任意 `宽x高` 格式（如 `1536x864`），宽高需在 256-4096 之间。也支持 `auto`（默认 1:1）",
-            "default": "auto",
+            "description": "图片尺寸。支持任意 `宽x高` 格式（如 `1536x864`），宽高需在 256-4096 之间",
+            "default": "1024x1024",
             "example": "1024x1024"
           },
           "quality": {
             "type": "string",
-            "description": "图片质量",
-            "default": "auto",
-            "enum": ["auto", "high", "medium", "low"]
+            "description": "图片质量等级，影响分辨率和价格",
+            "enum": ["low", "medium", "high"]
           },
           "response_format": {
             "type": "string",
-            "description": "响应格式，传 `url` 返回图片链接",
-            "enum": ["url"],
+            "description": "响应格式。`url` 返回图片链接；`b64_json` 返回 Base64 编码；`png`、`jpeg`、`webp` 直接返回二进制数据",
+            "enum": ["url", "b64_json", "png", "jpeg", "webp"],
+            "default": "url",
             "example": "url"
           },
           "image": {
             "type": "string",
             "format": "uri",
-            "description": "参考图片 URL（图生图模式）。传入参考图片后，模型将基于该图片生成新图像",
+            "description": "参考图片 URL（图生图模式）",
             "example": "https://example.com/reference.jpg"
           },
           "images": {
             "type": "array",
             "items": { "type": "string", "format": "uri" },
-            "description": "参考图片 URL 数组（图生图模式）。支持传入多张参考图片",
+            "description": "参考图片 URL 数组，支持多张",
             "example": ["https://example.com/ref1.jpg", "https://example.com/ref2.jpg"]
           },
           "mask": {
             "type": "string",
             "format": "uri",
-            "description": "遮罩图片 URL，用于指定图生图中需要修改的区域"
+            "description": "遮罩图片 URL，指定图生图中需要修改的区域"
           },
           "input_fidelity": {
             "type": "number",
-            "description": "图生图输入保真度。值越大，生成结果与参考图片越接近",
+            "description": "图生图输入保真度，值越大越接近参考图",
             "minimum": 0,
             "maximum": 1,
             "example": 0.8
@@ -177,15 +177,15 @@
           },
           "output_compression": {
             "type": "integer",
-            "description": "输出图片压缩比例（0-100）。仅在 output_format 为 jpeg 或 webp 时生效",
+            "description": "输出图片压缩比例（0-100），仅在 output_format 为 jpeg 或 webp 时生效",
             "minimum": 0,
             "maximum": 100,
             "default": 100
           },
           "background": {
             "type": "string",
-            "description": "背景设置。注意：gpt-image-2 目前不支持透明背景",
-            "enum": ["auto", "opaque", "transparent"],
+            "description": "背景设置，`opaque` 为纯色背景",
+            "enum": ["opaque"],
             "default": "opaque"
           },
           "moderation": {
@@ -198,10 +198,6 @@
             "type": "string",
             "description": "终端用户唯一标识，用于监控和检测滥用行为"
           },
-          "style": {
-            "type": "string",
-            "description": "图片风格。该参数仅对 dall-e-3 生效（vivid/natural），gpt-image-2 忽略"
-          },
           "stream": {
             "type": "boolean",
             "description": "是否使用流式输出",
@@ -212,7 +208,8 @@
           "model": "gpt-image-2",
           "prompt": "一只在星空下奔跑的白色独角兽，梦幻风格，高清",
           "n": 1,
-          "size": "1024x1024"
+          "size": "1024x1024",
+          "quality": "high"
         }
       },
       "ImageEditRequest": {
@@ -227,7 +224,7 @@
           },
           "prompt": {
             "type": "string",
-            "description": "编辑指令。描述希望对图片进行的修改",
+            "description": "编辑指令，描述希望对图片进行的修改",
             "example": "给这只猫加一顶红色帽子"
           },
           "image": {
@@ -256,14 +253,13 @@
           "size": {
             "type": "string",
             "description": "输出图片尺寸。支持任意 `宽x高` 格式，不传时默认使用参考图尺寸",
-            "default": "auto",
+            "default": "1024x1024",
             "example": "1024x1024"
           },
           "quality": {
             "type": "string",
-            "description": "图片质量",
-            "default": "auto",
-            "enum": ["auto", "high", "medium", "low"]
+            "description": "图片质量等级",
+            "enum": ["low", "medium", "high"]
           },
           "output_format": {
             "type": "string",
@@ -273,7 +269,7 @@
           },
           "output_compression": {
             "type": "integer",
-            "description": "输出图片压缩比例（0-100）。仅在 output_format 为 jpeg 或 webp 时生效",
+            "description": "输出图片压缩比例（0-100），仅在 output_format 为 jpeg 或 webp 时生效",
             "minimum": 0,
             "maximum": 100,
             "default": 100
@@ -313,9 +309,13 @@
                   "type": "string",
                   "description": "生成的图片 URL"
                 },
+                "b64_json": {
+                  "type": "string",
+                  "description": "Base64 编码的图片数据"
+                },
                 "revised_prompt": {
                   "type": "string",
-                  "description": "修改后的提示词"
+                  "description": "模型优化后的提示词"
                 }
               }
             }
@@ -329,7 +329,8 @@
             "type": "object",
             "properties": {
               "message": { "type": "string" },
-              "code": { "type": "integer" }
+              "code": { "type": "integer" },
+              "type": { "type": "string" }
             }
           }
         }
