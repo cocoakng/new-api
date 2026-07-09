@@ -427,6 +427,24 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	// aipai channel parameter mapping (quality & response_format)
+	if info != nil && info.ChannelMeta != nil && strings.Contains(info.ChannelBaseUrl, "aipaiai.cn") {
+		switch strings.ToLower(request.Quality) {
+		case "low", "auto":
+			request.Quality = "1K"
+		case "standard", "medium":
+			request.Quality = "2K"
+		case "high":
+			request.Quality = "4K"
+		case "":
+			request.Quality = "2K"
+		}
+		switch strings.ToLower(request.ResponseFormat) {
+		case "png", "jpeg", "webp":
+			request.ResponseFormat = "b64_json"
+		}
+	}
+
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesEdits:
 		if isJSONRequest(c) {
@@ -456,6 +474,27 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 					continue
 				}
 				for _, value := range values {
+					// aipai channel parameter mapping for form fields
+					if info != nil && info.ChannelMeta != nil && strings.Contains(info.ChannelBaseUrl, "aipaiai.cn") {
+						switch key {
+						case "quality":
+							switch strings.ToLower(value) {
+							case "low", "auto":
+								value = "1K"
+							case "standard", "medium":
+								value = "2K"
+							case "high":
+								value = "4K"
+							case "":
+								value = "2K"
+							}
+						case "response_format":
+							switch strings.ToLower(value) {
+							case "png", "jpeg", "webp":
+								value = "b64_json"
+							}
+						}
+					}
 					writer.WriteField(key, value)
 				}
 			}
