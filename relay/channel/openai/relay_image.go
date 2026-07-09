@@ -89,12 +89,26 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
 
-	contentType := strings.ToLower(resp.Header.Get("Content-Type"))
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return OpenaiImageHandler(c, info, resp)
 	}
-	if !strings.Contains(contentType, "text/event-stream") {
-		return OpenaiImageJSONAsStreamHandler(c, info, resp)
+
+	// 部分上游（如 aipaiai.cn）返回 SSE body 但 Content-Type 为
+	// application/json。先检测响应体是否为 SSE 格式，如果不是则 fallback 到 JSON 处理。
+	contentType := resp.Header.Get("Content-Type")
+	if !strings.Contains(strings.ToLower(contentType), "text/event-stream") {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+		}
+		trimmed := strings.TrimSpace(string(body))
+		if len(trimmed) == 0 || (trimmed[0] != 'd' && trimmed[0] != 'e') {
+			// 不是 SSE 格式（不以 data: 或 event: 开头），按 JSON 处理
+			resp.Body = io.NopCloser(strings.NewReader(trimmed))
+			return OpenaiImageJSONAsStreamHandler(c, info, resp)
+		}
+		// 是 SSE 格式，重新设置 body 以便 StreamScannerHandler 读取
+		resp.Body = io.NopCloser(strings.NewReader(trimmed))
 	}
 	// Reuse the shared streaming engine (helper.StreamScannerHandler) so the
 	// image streaming path gets the same ping keepalive, streaming-timeout

@@ -135,8 +135,8 @@
           },
           "response_format": {
             "type": "string",
-            "description": "响应格式。`url` 返回图片链接；`b64_json` 返回 Base64 编码；`png`、`jpeg`、`webp` 直接返回二进制数据",
-            "enum": ["url", "b64_json", "png", "jpeg", "webp"],
+            "description": "响应格式。`url` 返回图片链接；`b64_json` 返回 Base64 编码",
+            "enum": ["url", "b64_json"],
             "default": "url",
             "example": "url"
           },

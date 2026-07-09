@@ -38,6 +38,12 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
+	// 如果客户端请求流式响应，标记为流式（上游可能返回 SSE body 但 Content-Type 不是
+	// text/event-stream，例如 aipaiai.cn 返回 application/json + SSE body）
+	if request.Stream != nil && *request.Stream {
+		info.IsStream = true
+	}
+
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
