@@ -30,6 +30,8 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse}
 	case constant.ChannelTypeSora:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIVideo}
+	case constant.ChannelTypeKling, constant.ChannelTypeJimeng, constant.ChannelTypeVidu, constant.ChannelTypeDoubaoVideo:
+		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIVideo}
 	default:
 		if IsOpenAIResponseOnlyModel(modelName) {
 			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIResponse}
@@ -40,6 +42,23 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 	if IsImageGenerationModel(modelName) {
 		// add to first
 		endpointTypes = append([]constant.EndpointType{constant.EndpointTypeImageGeneration}, endpointTypes...)
+	}
+	if IsImageEditModel(modelName) {
+		endpointTypes = append([]constant.EndpointType{constant.EndpointTypeImageEdits}, endpointTypes...)
+	}
+	if IsVideoGenerationModel(modelName) {
+		// add to first
+		endpointTypes = append([]constant.EndpointType{constant.EndpointTypeOpenAIVideo}, endpointTypes...)
+	}
+	// 纯生图/视频模型不支持文本聊天端点
+	if IsImageGenerationModel(modelName) || IsVideoGenerationModel(modelName) {
+		filtered := make([]constant.EndpointType, 0, len(endpointTypes))
+		for _, et := range endpointTypes {
+			if et != constant.EndpointTypeOpenAI && et != constant.EndpointTypeOpenAIResponse && et != constant.EndpointTypeOpenAIResponseCompact {
+				filtered = append(filtered, et)
+			}
+		}
+		endpointTypes = filtered
 	}
 	return endpointTypes
 }

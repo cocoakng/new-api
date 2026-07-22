@@ -75,6 +75,24 @@ export async function getUserSubscriptions(
   return res.data
 }
 
+export async function getAllUserSubscriptions(
+  params: {
+    page?: number
+    page_size?: number
+    user_id?: string
+    plan_id?: string
+    status?: string
+  } = {}
+): Promise<ApiResponse<{
+  data: (UserSubscriptionRecord & { username?: string; plan_title?: string; money?: number })[]
+  total: number
+  page: number
+  page_size: number
+}>> {
+  const res = await api.get('/api/subscription/admin/users/all', { params })
+  return res.data
+}
+
 export async function createUserSubscription(
   userId: number,
   data: CreateUserSubscriptionRequest
@@ -169,6 +187,16 @@ export async function paySubscriptionEpay(
   data: SubscriptionPayRequest & { payment_method: string }
 ): Promise<SubscriptionPayResponse & { url?: string }> {
   const res = await api.post('/api/subscription/epay/pay', data)
+  return {
+    ...res.data,
+    url: res.data.url || (res as unknown as { url?: string }).url,
+  }
+}
+
+export async function paySubscriptionXunhu(
+  data: SubscriptionPayRequest
+): Promise<SubscriptionPayResponse & { url?: string }> {
+  const res = await api.post('/api/subscription/xunhu/pay', data)
   return {
     ...res.data,
     url: res.data.url || (res as unknown as { url?: string }).url,

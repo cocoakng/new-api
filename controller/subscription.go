@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -368,6 +369,107 @@ func AdminListUserSubscriptions(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, subs)
+}
+
+// AdminListAllUserSubscriptions lists all user subscriptions with pagination and optional filtering.
+func AdminListAllUserSubscriptions(c *gin.Context) {
+	page, _ := strconv.Atoi(c.Query("page"))
+	if page < 1 {
+		page = 1
+	}
+	pageSize, _ := strconv.Atoi(c.Query("page_size"))
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	// Build raw query with JOINs for username and plan title
+	whereClauses := []string{}
+	whereArgs := []interface{}{}
+
+	if userIdStr := c.Query("user_id"); userIdStr != "" {
+		if userId, err := strconv.Atoi(userIdStr); err == nil && userId > 0 {
+			whereClauses = append(whereClauses, "us.user_id = ?")
+			whereArgs = append(whereArgs, userId)
+		}
+	}
+	if planIdStr := c.Query("plan_id"); planIdStr != "" {
+		if planId, err := strconv.Atoi(planIdStr); err == nil && planId > 0 {
+			whereClauses = append(whereClauses, "us.plan_id = ?")
+			whereArgs = append(whereArgs, planId)
+		}
+	}
+	if status := c.Query("status"); status != "" {
+		whereClauses = append(whereClauses, "us.status = ?")
+		whereArgs = append(whereArgs, status)
+	}
+
+	whereSQL := ""
+	if len(whereClauses) > 0 {
+		whereSQL = "WHERE " + strings.Join(whereClauses, " AND ")
+	}
+
+	// Count query
+	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM user_subscriptions us %s", whereSQL)
+	var total int64
+	countRow := model.DB.Raw(countSQL, whereArgs...).Row()
+	countRow.Scan(&total)
+
+	// Data query with JOINs (subscription + user + plan + latest order money)
+	offset := (page - 1) * pageSize
+	dataSQL := fmt.Sprintf(`
+		SELECT us.*, u.username, sp.title as plan_title,
+			IFNULL(
+				(SELECT so.money FROM subscription_orders so
+				 WHERE so.user_id = us.user_id AND so.plan_id = us.plan_id AND so.status = 'success'
+				 ORDER BY so.create_time DESC LIMIT 1),
+				0
+			) as money
+		FROM user_subscriptions us
+		LEFT JOIN users u ON us.user_id = u.id
+		LEFT JOIN subscription_plans sp ON us.plan_id = sp.id
+		%s
+		ORDER BY us.id DESC
+		LIMIT %d OFFSET %d
+	`, whereSQL, pageSize, offset)
+
+	// For MySQL, IFNULL works; for PostgreSQL use COALESCE, for SQLite IFNULL also works
+	if common.UsingPostgreSQL {
+		dataSQL = fmt.Sprintf(`
+			SELECT us.*, u.username, sp.title as plan_title,
+				COALESCE(
+					(SELECT so.money FROM subscription_orders so
+					 WHERE so.user_id = us.user_id AND so.plan_id = us.plan_id AND so.status = 'success'
+					 ORDER BY so.create_time DESC LIMIT 1),
+					0
+				) as money
+			FROM user_subscriptions us
+			LEFT JOIN users u ON us.user_id = u.id
+			LEFT JOIN subscription_plans sp ON us.plan_id = sp.id
+			%s
+			ORDER BY us.id DESC
+			LIMIT %d OFFSET %d
+		`, whereSQL, pageSize, offset)
+	}
+
+	type UserSubscriptionWithInfo struct {
+		model.UserSubscription
+		Username  string  `json:"username"`
+		PlanTitle string  `json:"plan_title"`
+		Money     float64 `json:"money"`
+	}
+
+	var subs []UserSubscriptionWithInfo
+	if err := model.DB.Raw(dataSQL, whereArgs...).Scan(&subs).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"data":      subs,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
 }
 
 type AdminCreateUserSubscriptionRequest struct {

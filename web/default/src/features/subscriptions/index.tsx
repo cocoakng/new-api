@@ -16,9 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState } from 'react'
 import { Info } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
 import { SubscriptionsDialogs } from './components/subscriptions-dialogs'
 import { SubscriptionsPrimaryButtons } from './components/subscriptions-primary-buttons'
@@ -27,43 +29,67 @@ import {
   useSubscriptions,
 } from './components/subscriptions-provider'
 import { SubscriptionsTable } from './components/subscriptions-table'
+import { UserSubscriptionsTable } from './components/user-subscriptions-table'
 
 function SubscriptionsContent() {
   const { t } = useTranslation()
   const { complianceConfirmed } = useSubscriptions()
+  const [activeTab, setActiveTab] = useState<string>('plans')
 
   return (
     <>
-      <SectionPageLayout>
-        <SectionPageLayout.Title>
-          {t('Subscription Management')}
-        </SectionPageLayout.Title>
-        <SectionPageLayout.Actions>
-          <div className='flex items-center gap-2'>
-            <Alert variant='default' className='hidden px-3 py-2 sm:flex'>
-              <Info className='h-4 w-4' />
-              <AlertDescription className='text-xs'>
-                {t(
-                  'Stripe/Creem requires creating products on the third-party platform and entering the ID'
-                )}
-              </AlertDescription>
-            </Alert>
-            <SubscriptionsPrimaryButtons />
-          </div>
-        </SectionPageLayout.Actions>
-        <SectionPageLayout.Content>
-          {!complianceConfirmed ? (
-            <Alert variant='destructive' className='mb-4'>
-              <AlertDescription>
-                {t(
-                  'Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.'
-                )}
-              </AlertDescription>
-            </Alert>
-          ) : null}
-          <SubscriptionsTable />
-        </SectionPageLayout.Content>
-      </SectionPageLayout>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className='flex items-center justify-between'>
+          <TabsList variant='line'>
+            <TabsTrigger value='plans'>{t('Plan Management')}</TabsTrigger>
+            <TabsTrigger value='userSubs'>{t('User Subscriptions')}</TabsTrigger>
+          </TabsList>
+          {activeTab === 'plans' && <SubscriptionsPrimaryButtons />}
+        </div>
+
+        <TabsContent value='plans'>
+          <SectionPageLayout>
+            <SectionPageLayout.Title>
+              {t('Subscription Management')}
+            </SectionPageLayout.Title>
+            <SectionPageLayout.Actions>
+              <div className='flex items-center gap-2'>
+                <Alert variant='default' className='hidden px-3 py-2 sm:flex'>
+                  <Info className='h-4 w-4' />
+                  <AlertDescription className='text-xs'>
+                    {t(
+                      'Stripe/Creem requires creating products on the third-party platform and entering the ID'
+                    )}
+                  </AlertDescription>
+                </Alert>
+              </div>
+            </SectionPageLayout.Actions>
+            <SectionPageLayout.Content>
+              {!complianceConfirmed ? (
+                <Alert variant='destructive' className='mb-4'>
+                  <AlertDescription>
+                    {t(
+                      'Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.'
+                    )}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              <SubscriptionsTable />
+            </SectionPageLayout.Content>
+          </SectionPageLayout>
+        </TabsContent>
+
+        <TabsContent value='userSubs'>
+          <SectionPageLayout>
+            <SectionPageLayout.Title>
+              {t('User Subscriptions')}
+            </SectionPageLayout.Title>
+            <SectionPageLayout.Content>
+              <UserSubscriptionsTable />
+            </SectionPageLayout.Content>
+          </SectionPageLayout>
+        </TabsContent>
+      </Tabs>
 
       <SubscriptionsDialogs />
     </>

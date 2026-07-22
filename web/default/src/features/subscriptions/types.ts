@@ -65,12 +65,34 @@ export const userSubscriptionSchema = z.object({
   amount_total: z.number(),
   amount_used: z.number(),
   next_reset_time: z.number().optional(),
+  upgrade_group: z.string().optional(),
+  username: z.string().optional(),
+  plan_title: z.string().optional(),
+  money: z.number().optional(),
 })
 
 export type UserSubscription = z.infer<typeof userSubscriptionSchema>
 
 export interface UserSubscriptionRecord {
   subscription: UserSubscription
+}
+
+// Extended record for global admin list (with JOINed username, plan_title, money)
+export interface UserSubscriptionWithInfo {
+  id: number
+  user_id: number
+  plan_id: number
+  status: string
+  source?: string
+  start_time: number
+  end_time: number
+  amount_total: number
+  amount_used: number
+  next_reset_time?: number
+  upgrade_group?: string
+  username?: string
+  plan_title?: string
+  money?: number
 }
 
 // ============================================================================

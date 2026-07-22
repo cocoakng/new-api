@@ -88,7 +88,7 @@ func (*XunhuAdaptor) RequestPay(c *gin.Context, req *XunhuPayRequest) {
 	}
 
 	// 调用虎皮椒支付接口
-	payURL, err := genXunhuPayLink(c.Request.Context(), tradeNo, payMoney, fmt.Sprintf("账户充值 - %d", req.Amount))
+	payURL, err := genXunhuPayLink(c.Request.Context(), tradeNo, payMoney, fmt.Sprintf("账户充值 - %d", req.Amount), "", "")
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("虎皮椒 拉起支付失败 user_id=%d trade_no=%s error=%q", id, tradeNo, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
@@ -194,14 +194,23 @@ func getXunhuMinTopUp() int64 {
 }
 
 // genXunhuPayLink 生成虎皮椒支付链接
-func genXunhuPayLink(ctx context.Context, tradeNo string, payMoney float64, title string) (string, error) {
+// When notifyURL/returnURL are empty, defaults are used.
+func genXunhuPayLink(ctx context.Context, tradeNo string, payMoney float64, title string, optionalNotifyURL string, optionalReturnURL string) (string, error) {
 	if setting.XunhuAppId == "" || setting.XunhuAppSecret == "" || setting.XunhuApiHost == "" {
 		return "", fmt.Errorf("未配置虎皮椒支付信息")
 	}
 
 	callBackAddress := service.GetCallbackAddress()
-	notifyURL, _ := url.Parse(callBackAddress + "/api/xunhu/webhook")
-	returnURL := paymentReturnPath("/console/log")
+	notifyURL := optionalNotifyURL
+	if notifyURL == "" {
+		if u, err := url.Parse(callBackAddress + "/api/xunhu/webhook"); err == nil {
+			notifyURL = u.String()
+		}
+	}
+	returnURL := optionalReturnURL
+	if returnURL == "" {
+		returnURL = paymentReturnPath("/console/log")
+	}
 
 	// 构建支付参数
 	now := time.Now().Unix()
@@ -213,7 +222,7 @@ func genXunhuPayLink(ctx context.Context, tradeNo string, payMoney float64, titl
 		"total_fee":      strconv.FormatFloat(payMoney, 'f', 2, 64),
 		"title":          title,
 		"time":           strconv.FormatInt(now, 10),
-		"notify_url":     notifyURL.String(),
+		"notify_url":     notifyURL,
 		"return_url":     returnURL,
 		"nonce_str":      nonceStr,
 	}

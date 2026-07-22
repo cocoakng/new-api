@@ -251,6 +251,7 @@ export function UserSubscriptionsDialog(props: Props) {
                   <TableRow>
                     <TableHead>ID</TableHead>
                     <TableHead>{t('Plan')}</TableHead>
+                    <TableHead>{t('Payment Amount')}</TableHead>
                     <TableHead>{t('Status')}</TableHead>
                     <TableHead>{t('Validity')}</TableHead>
                     <TableHead>{t('Total Quota')}</TableHead>
@@ -260,14 +261,14 @@ export function UserSubscriptionsDialog(props: Props) {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className='py-8 text-center'>
+                      <TableCell colSpan={7} className='py-8 text-center'>
                         {t('Loading...')}
                       </TableCell>
                     </TableRow>
                   ) : subs.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={7}
                         className='text-muted-foreground py-8 text-center'
                       >
                         {t('No subscription records')}
@@ -282,6 +283,7 @@ export function UserSubscriptionsDialog(props: Props) {
                       const isActive = sub.status === 'active' && !isExpired
                       const total = Number(sub.amount_total || 0)
                       const used = Number(sub.amount_used || 0)
+                      const money = (sub as Record<string, unknown>).money as number | undefined
 
                       return (
                         <TableRow key={sub.id}>
@@ -298,6 +300,15 @@ export function UserSubscriptionsDialog(props: Props) {
                                 {t('Source')}: {sub.source || '-'}
                               </div>
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            {money && money > 0 ? (
+                              <span className='font-semibold text-emerald-600'>
+                                ¥{money.toFixed(2)}
+                              </span>
+                            ) : (
+                              <span className='text-muted-foreground'>-</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             <SubscriptionStatusBadge sub={sub} t={t} />

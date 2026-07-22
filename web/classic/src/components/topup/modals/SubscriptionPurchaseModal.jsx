@@ -31,6 +31,7 @@ import {
 import { Crown, CalendarClock, Package } from 'lucide-react';
 import { SiStripe } from 'react-icons/si';
 import { IconCreditCard } from '@douyinfe/semi-icons';
+import WeChatIcon from '../../../components/common/logo/WeChatIcon';
 import { renderQuota } from '../../../helpers';
 import { getCurrencyConfig } from '../../../helpers/render';
 import {
@@ -52,10 +53,12 @@ const SubscriptionPurchaseModal = ({
   enableOnlineTopUp = false,
   enableStripeTopUp = false,
   enableCreemTopUp = false,
+  enableXunhuTopUp = false,
   purchaseLimitInfo = null,
   onPayStripe,
   onPayCreem,
   onPayEpay,
+  onPayXunhu,
 }) => {
   const plan = selectedPlan?.plan;
   const totalAmount = Number(plan?.total_amount || 0);
@@ -68,8 +71,9 @@ const SubscriptionPurchaseModal = ({
   // 只有当管理员开启支付网关 AND 套餐配置了对应的支付ID时才显示
   const hasStripe = enableStripeTopUp && !!plan?.stripe_price_id;
   const hasCreem = enableCreemTopUp && !!plan?.creem_product_id;
+  const hasXunhu = enableXunhuTopUp;
   const hasEpay = enableOnlineTopUp && epayMethods.length > 0;
-  const hasAnyPayment = hasStripe || hasCreem || hasEpay;
+  const hasAnyPayment = hasStripe || hasCreem || hasXunhu || hasEpay;
   const purchaseLimit = Number(purchaseLimitInfo?.limit || 0);
   const purchaseCount = Number(purchaseLimitInfo?.count || 0);
   const purchaseLimitReached =
@@ -185,8 +189,8 @@ const SubscriptionPurchaseModal = ({
                 {t('选择支付方式')}：
               </Text>
 
-              {/* Stripe / Creem */}
-              {(hasStripe || hasCreem) && (
+              {/* Stripe / Creem / Xunhu */}
+              {(hasStripe || hasCreem || hasXunhu) && (
                 <div className='flex gap-2'>
                   {hasStripe && (
                     <Button
@@ -210,6 +214,18 @@ const SubscriptionPurchaseModal = ({
                       disabled={purchaseLimitReached}
                     >
                       Creem
+                    </Button>
+                  )}
+                  {hasXunhu && (
+                    <Button
+                      theme='light'
+                      className='flex-1'
+                      icon={<WeChatIcon />}
+                      onClick={onPayXunhu}
+                      loading={paying}
+                      disabled={purchaseLimitReached}
+                    >
+                      {t('微信')}
                     </Button>
                   )}
                 </div>

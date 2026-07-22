@@ -41,6 +41,7 @@ import {
   paySubscriptionCreem,
   paySubscriptionEpay,
   paySubscriptionWaffoPancake,
+  paySubscriptionXunhu,
   paySubscriptionBalance,
 } from '../../api'
 import { formatDuration, formatResetPeriod } from '../../lib'
@@ -58,6 +59,7 @@ interface Props {
   enableStripe?: boolean
   enableCreem?: boolean
   enableWaffoPancake?: boolean
+  enableXunhu?: boolean
   enableOnlineTopUp?: boolean
   epayMethods?: PaymentMethod[]
   purchaseLimit?: number
@@ -87,9 +89,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const hasCreem = props.enableCreem && !!plan.creem_product_id
   const hasWaffoPancake =
     props.enableWaffoPancake && !!plan.waffo_pancake_product_id
+  const hasXunhu = !!props.enableXunhu
   const hasEpay =
     props.enableOnlineTopUp && (props.epayMethods || []).length > 0
-  const hasAnyPayment = hasStripe || hasCreem || hasWaffoPancake || hasEpay
+  const hasAnyPayment = hasStripe || hasCreem || hasWaffoPancake || hasXunhu || hasEpay
   const selectedEpayMethodLabel =
     (props.epayMethods || []).find((m) => m.type === selectedEpayMethod)
       ?.name ||
@@ -212,6 +215,28 @@ export function SubscriptionPurchaseDialog(props: Props) {
         form.submit()
         document.body.removeChild(form)
         toast.success(t('Payment initiated'))
+        props.onOpenChange(false)
+      } else {
+        toast.error(
+          res.message && res.message !== 'success'
+            ? res.message
+            : t('Payment request failed')
+        )
+      }
+    } catch {
+      toast.error(t('Payment request failed'))
+    } finally {
+      setPaying(false)
+    }
+  }
+
+  const handlePayXunhu = async () => {
+    setPaying(true)
+    try {
+      const res = await paySubscriptionXunhu({ plan_id: plan.id })
+      if (res.message === 'success' && res.data?.pay_link) {
+        window.open(res.data.pay_link, '_blank')
+        toast.success(t('Payment page opened'))
         props.onOpenChange(false)
       } else {
         toast.error(
@@ -366,7 +391,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
             <p className='text-muted-foreground text-xs'>
               {t('Select payment method')}
             </p>
-            {(hasStripe || hasCreem || hasWaffoPancake) && (
+            {(hasStripe || hasCreem || hasWaffoPancake || hasXunhu) && (
               <div className='grid grid-cols-2 gap-2 sm:flex'>
                 {hasStripe && (
                   <Button
@@ -396,6 +421,16 @@ export function SubscriptionPurchaseDialog(props: Props) {
                     disabled={paying || limitReached}
                   >
                     Waffo Pancake
+                  </Button>
+                )}
+                {hasXunhu && (
+                  <Button
+                    variant='outline'
+                    className='flex-1'
+                    onClick={handlePayXunhu}
+                    disabled={paying || limitReached}
+                  >
+                    {t('Xunhu')}
                   </Button>
                 )}
               </div>
