@@ -648,6 +648,7 @@ func RelayTask(c *gin.Context) {
 			task.PrivateData.BillingContext.BillingMode = relayInfo.TieredBillingSnapshot.BillingMode
 			task.PrivateData.BillingContext.ExprString = relayInfo.TieredBillingSnapshot.ExprString
 			task.PrivateData.BillingContext.ExprHash = relayInfo.TieredBillingSnapshot.ExprHash
+			task.PrivateData.BillingContext.RequestParams = relayInfo.TieredBillingSnapshot.RequestParams
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData

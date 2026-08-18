@@ -143,6 +143,9 @@ export interface LogOtherData {
   billing_mode?: string
   expr_b64?: string
   matched_tier?: string
+  // Actual request parameters captured at pre-consume time (e.g., video generation).
+  duration?: number
+  resolution?: string
   reasoning_effort?: string
   image?: boolean
   image_ratio?: number

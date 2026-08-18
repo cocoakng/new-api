@@ -116,9 +116,10 @@ type TaskBillingContext struct {
 	OriginModelName string             `json:"origin_model_name,omitempty"` // 模型名称，必须为OriginModelName
 	PerCallBilling  bool               `json:"per_call_billing,omitempty"`  // 按次计费：跳过轮询阶段的差额结算
 	// Tiered expression fields for per-call tiered_expr billing (e.g., per-second video pricing)
-	BillingMode string `json:"billing_mode,omitempty"` // 计费模式：per_second/per_call/tiered_expr
-	ExprString  string `json:"expr_string,omitempty"`  // 计费表达式
-	ExprHash    string `json:"expr_hash,omitempty"`    // 表达式哈希
+	BillingMode   string                 `json:"billing_mode,omitempty"`   // 计费模式：per_second/per_call/tiered_expr
+	ExprString    string                 `json:"expr_string,omitempty"`    // 计费表达式
+	ExprHash      string                 `json:"expr_hash,omitempty"`      // 表达式哈希
+	RequestParams map[string]interface{} `json:"request_params,omitempty"` // 请求参数（duration、resolution 等）
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）

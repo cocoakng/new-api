@@ -514,6 +514,16 @@ func modelPriceHelperSecond(c *gin.Context, info *relaycommon.RelayInfo, promptT
 	}
 
 	exprHash := billingexpr.ExprHashString(exprStr)
+
+	// Collect actual request parameters for log display.
+	requestParams := map[string]interface{}{}
+	if duration > 0 {
+		requestParams["duration"] = duration
+	}
+	if r := gjson.GetBytes(requestInput.Body, "resolution"); r.Exists() && r.String() != "" {
+		requestParams["resolution"] = r.String()
+	}
+
 	snapshot := &billingexpr.BillingSnapshot{
 		BillingMode:               billing_setting.BillingModePerSecond,
 		ModelName:                 info.OriginModelName,
@@ -525,6 +535,7 @@ func modelPriceHelperSecond(c *gin.Context, info *relaycommon.RelayInfo, promptT
 		EstimatedTier:             trace.MatchedTier,
 		QuotaPerUnit:              common.QuotaPerUnit,
 		ExprVersion:               exprVersion,
+		RequestParams:             requestParams,
 	}
 	info.TieredBillingSnapshot = snapshot
 	info.BillingRequestInput = &requestInput
@@ -567,8 +578,10 @@ func modelPriceHelperPerCallSecond(c *gin.Context, info *relaycommon.RelayInfo, 
 			duration = r.Float()
 			requestInput.Body, _ = sjson.SetBytes(requestInput.Body, "duration", duration)
 		}
+	}
 
-		// Normalize resolution to root level (try multiple field names)
+	// Normalize resolution to root level (try multiple field names)
+	if len(requestInput.Body) > 0 {
 		if r := gjson.GetBytes(requestInput.Body, "resolution"); r.Exists() && r.String() != "" {
 			resVal := strings.TrimSpace(r.String())
 			resVal = strings.ToUpper(resVal)
@@ -647,6 +660,16 @@ func modelPriceHelperPerCallSecond(c *gin.Context, info *relaycommon.RelayInfo, 
 	}
 
 	exprHash := billingexpr.ExprHashString(exprStr)
+
+	// Collect actual request parameters for log display.
+	requestParams := map[string]interface{}{}
+	if duration > 0 {
+		requestParams["duration"] = duration
+	}
+	if r := gjson.GetBytes(requestInput.Body, "resolution"); r.Exists() && r.String() != "" {
+		requestParams["resolution"] = r.String()
+	}
+
 	snapshot := &billingexpr.BillingSnapshot{
 		BillingMode:               billing_setting.BillingModePerSecond,
 		ModelName:                 info.OriginModelName,
@@ -658,6 +681,7 @@ func modelPriceHelperPerCallSecond(c *gin.Context, info *relaycommon.RelayInfo, 
 		EstimatedTier:             trace.MatchedTier,
 		QuotaPerUnit:              common.QuotaPerUnit,
 		ExprVersion:               exprVersion,
+		RequestParams:             requestParams,
 	}
 	info.TieredBillingSnapshot = snapshot
 	info.BillingRequestInput = &requestInput

@@ -303,6 +303,20 @@ function BillingBreakdown(props: {
     })
   }
 
+  // Show actual request parameters (duration, resolution) if available.
+  if (other.duration && other.duration > 0) {
+    rows.push({
+      label: t('Duration'),
+      value: `${other.duration}s`,
+    })
+  }
+  if (other.resolution) {
+    rows.push({
+      label: t('Resolution'),
+      value: other.resolution,
+    })
+  }
+
   rows.push({
     label: t('Total Cost'),
     value: formatLogQuota(log.quota),

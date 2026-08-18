@@ -589,19 +589,44 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 }
 
 // extractDurationFromTaskData parses the duration from task.Data JSON.
+// It tries multiple locations since different upstreams use different formats:
+//   - Root level: {"duration": 4} or {"seconds": 4}
+//   - Nested: {"usage": {"duration_seconds": 4}}
 func extractDurationFromTaskData(data []byte) float64 {
 	if len(data) == 0 {
 		return 0
 	}
 	var payload map[string]interface{}
 	_ = common.Unmarshal(data, &payload)
+
+	// Try root level "duration" field
 	if d, ok := payload["duration"].(float64); ok {
 		return d
 	}
-	// Try as string (some upstreams return duration as string)
+	// Try root level "duration" as string (some upstreams return duration as string)
 	if s, ok := payload["duration"].(string); ok {
 		if val, err := strconv.ParseFloat(s, 64); err == nil {
 			return val
+		}
+	}
+	// Try root level "seconds" field (e.g., doubao task response)
+	if d, ok := payload["seconds"].(float64); ok {
+		return d
+	}
+	if s, ok := payload["seconds"].(string); ok {
+		if val, err := strconv.ParseFloat(s, 64); err == nil {
+			return val
+		}
+	}
+	// Try nested "usage.duration_seconds" field (e.g., doubao task response)
+	if usage, ok := payload["usage"].(map[string]interface{}); ok {
+		if d, ok := usage["duration_seconds"].(float64); ok {
+			return d
+		}
+		if s, ok := usage["duration_seconds"].(string); ok {
+			if val, err := strconv.ParseFloat(s, 64); err == nil {
+				return val
+			}
 		}
 	}
 	return 0

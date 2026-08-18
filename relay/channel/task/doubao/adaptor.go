@@ -21,6 +21,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 // ============================
@@ -114,9 +116,75 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
+// When the request has no duration/seconds, injects a default of 4 seconds into the
+// body storage so that per_second billing (modelPriceHelperPerCallSecond) picks it up
+// during pre-consume. Doubao defaults to generating 4-second videos when unspecified.
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
 	// Accept only POST /v1/video/generations as "generate" action.
-	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
+	if err := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate); err != nil {
+		return err
+	}
+
+	// Inject default seconds=4 when no duration is specified, so that
+	// modelPriceHelperPerCallSecond can calculate a non-zero pre-consume quota.
+	injectDefaultDuration(c, info)
+	return nil
+}
+
+// injectDefaultDuration checks the stored request body for any duration field
+// (duration, seconds, metadata.durationSeconds). If none is found, it injects
+// "seconds": "4" into the body storage and updates the stored TaskSubmitReq.
+func injectDefaultDuration(c *gin.Context, info *relaycommon.RelayInfo) {
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return
+	}
+
+	// Already has explicit duration — nothing to do.
+	if req.Duration > 0 || req.Seconds != "" {
+		return
+	}
+	// Check metadata for duration hints.
+	if req.Metadata != nil {
+		if _, ok := req.Metadata["duration"]; ok {
+			return
+		}
+		if _, ok := req.Metadata["durationSeconds"]; ok {
+			return
+		}
+	}
+
+	// Also verify via raw body (in case TaskSubmitReq parsing missed something).
+	storage, sErr := common.GetBodyStorage(c)
+	if sErr != nil || storage == nil {
+		return
+	}
+	bodyBytes, rErr := storage.Bytes()
+	if rErr != nil || len(bodyBytes) == 0 {
+		return
+	}
+	if gjson.GetBytes(bodyBytes, "duration").Exists() ||
+		gjson.GetBytes(bodyBytes, "seconds").Exists() ||
+		gjson.GetBytes(bodyBytes, "metadata.durationSeconds").Exists() {
+		return
+	}
+
+	// Inject default seconds=4 into body storage.
+	modified, sErr := sjson.SetBytes(bodyBytes, "seconds", "4")
+	if sErr != nil {
+		return
+	}
+	newStorage, sErr := common.CreateBodyStorage(modified)
+	if sErr != nil {
+		return
+	}
+	c.Set(common.KeyBodyStorage, newStorage)
+
+	// Update the stored TaskSubmitReq so downstream consumers see the default.
+	req.Seconds = "4"
+	c.Set("task_request", req)
+
+	_ = info // info not needed here, kept for future use
 }
 
 // BuildRequestURL constructs the upstream URL.
@@ -133,17 +201,42 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 }
 
 // EstimateBilling 检测请求 metadata 中是否包含视频输入，返回视频折扣 OtherRatio。
+// 从请求体中读取有效时长（用户指定或 injectDefaultDuration 注入的默认值）。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil
 	}
+	ratios := map[string]float64{}
+
+	// 检测视频输入折扣
 	if hasVideoInMetadata(req.Metadata) {
 		if ratio, ok := GetVideoInputRatio(info.OriginModelName); ok {
-			return map[string]float64{"video_input": ratio}
+			ratios["video_input"] = ratio
 		}
 	}
-	return nil
+
+	// 从请求体读取有效时长（ValidateRequestAndSetAction 已注入默认值）
+	if storage, sErr := common.GetBodyStorage(c); sErr == nil && storage != nil {
+		if bodyBytes, rErr := storage.Bytes(); rErr == nil && len(bodyBytes) > 0 {
+			var sec float64
+			if r := gjson.GetBytes(bodyBytes, "duration"); r.Exists() {
+				sec = r.Float()
+			} else if r := gjson.GetBytes(bodyBytes, "seconds"); r.Exists() {
+				sec = r.Float()
+			} else if r := gjson.GetBytes(bodyBytes, "metadata.durationSeconds"); r.Exists() {
+				sec = r.Float()
+			}
+			if sec > 0 {
+				ratios["seconds"] = sec
+			}
+		}
+	}
+
+	if len(ratios) == 0 {
+		return nil
+	}
+	return ratios
 }
 
 // hasVideoInMetadata 直接检查 metadata 的 content 数组是否包含 video_url 条目，

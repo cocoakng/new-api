@@ -2298,6 +2298,8 @@ export function renderTieredModelPrice(opts) {
     cache_creation_tokens: cacheCreationTokens = 0,
     cache_creation_tokens_5m: cacheCreationTokens5m = 0,
     cache_creation_tokens_1h: cacheCreationTokens1h = 0,
+    duration,
+    resolution,
   } = opts;
   let exprStr = '';
   try { exprStr = decodeFromBase64(exprB64); } catch { /* ignore */ }
@@ -2336,6 +2338,14 @@ export function renderTieredModelPrice(opts) {
                 : buildBillingPriceText(`${label}：{{symbol}}{{price}} / 1M tokens`, { symbol, usdAmount: tier[field], rate }),
         ),
   ];
+
+  // Show actual request parameters (duration, resolution) if available.
+  if (duration > 0) {
+    lines.push(buildBillingText('时长：{{duration}} 秒', { duration }));
+  }
+  if (resolution) {
+    lines.push(buildBillingText('分辨率：{{resolution}}', { resolution }));
+  }
 
   return renderBillingArticle(lines);
 }

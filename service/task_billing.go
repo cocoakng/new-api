@@ -68,6 +68,10 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 		other["billing_mode"] = info.TieredBillingSnapshot.BillingMode
 		other["expr_b64"] = base64.StdEncoding.EncodeToString([]byte(info.TieredBillingSnapshot.ExprString))
 		other["matched_tier"] = info.TieredBillingSnapshot.EstimatedTier
+		// Include actual request parameters (duration, resolution, etc.) for log display.
+		for k, v := range info.TieredBillingSnapshot.RequestParams {
+			other[k] = v
+		}
 	}
 	model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
 		ChannelId: info.ChannelId,
@@ -154,6 +158,10 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 			other["billing_mode"] = bc.BillingMode
 			other["expr_b64"] = base64.StdEncoding.EncodeToString([]byte(bc.ExprString))
 			other["matched_tier"] = bc.ExprHash // not the actual tier, but best we have in context
+		}
+		// Include actual request parameters (duration, resolution, etc.) for log display.
+		for k, v := range bc.RequestParams {
+			other[k] = v
 		}
 	}
 	props := task.Properties
